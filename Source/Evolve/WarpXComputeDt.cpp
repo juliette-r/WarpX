@@ -49,6 +49,8 @@ WarpX::ComputeDt ()
             deltat = cfl * CartesianYeeAlgorithm::ComputeMaxDt(dx);
         } else if (maxwell_solver_id == MaxwellSolverAlgo::CKC) {
             deltat = cfl * CartesianCKCAlgorithm::ComputeMaxDt(dx);
+        } else if (maxwell_solver_id == MaxwellSolverAlgo::RIP) {
+            deltat = dx[AMREX_SPACEDIM-1]/PhysConst::c;
 #endif
         } else {
             amrex::Abort("ComputeDt: Unknown algorithm");

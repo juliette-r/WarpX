@@ -360,7 +360,8 @@ WarpX::OneStep_nosub (Real cur_time)
             DampPML();
             NodalSyncPML();
         }
-    } else {
+    } else if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::Yee ||
+               WarpX::maxwell_solver_id == MaxwellSolverAlgo::CKC) {
         EvolveF(0.5_rt * dt[0], DtType::FirstHalf);
         EvolveG(0.5_rt * dt[0], DtType::FirstHalf);
         FillBoundaryF(guard_cells.ng_FieldSolverF);
@@ -401,7 +402,12 @@ WarpX::OneStep_nosub (Real cur_time)
         // outdated.
         if (safe_guard_cells)
             FillBoundaryB(guard_cells.ng_alloc_EB);
-    } // !PSATD
+    } else if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
+        // RIP scheme
+        amrex::Print()<<"RIP scheme\n";
+    } else {
+        amrex::Abort("Umknown Maxwell Solver");
+    }
 
     if (warpx_py_afterEsolve) warpx_py_afterEsolve();
 }
