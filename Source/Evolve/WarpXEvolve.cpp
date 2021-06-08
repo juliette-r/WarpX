@@ -404,6 +404,9 @@ WarpX::OneStep_nosub (Real cur_time)
             FillBoundaryB(guard_cells.ng_alloc_EB);
     } else if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
         // RIP scheme
+        // Note: I only created empty current arrays appended with _old
+        // to store the value from the previous time step, so you can do the averaging.
+        // You will need to fill it with the old value when needed, and take care of the averaging.
         amrex::Print()<<"RIP scheme\n";
         EvolveERIP(dt[0], false);
         EvolveBRIP(dt[0], false);
