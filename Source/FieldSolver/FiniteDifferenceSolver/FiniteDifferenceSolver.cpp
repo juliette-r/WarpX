@@ -70,6 +70,12 @@ FiniteDifferenceSolver::FiniteDifferenceSolver (
         CartesianCKCAlgorithm::InitializeStencilCoefficients( cell_size,
             stencil_coefs_x, stencil_coefs_y, stencil_coefs_z );
 
+    } else if (fdtd_algo == MaxwellSolverAlgo::RIP) {
+
+        amrex::Print()<<"FiniteDifferenceSolver::FiniteDifferenceSolver: RIP solver, don't initialize\n";
+        CartesianCKCAlgorithm::InitializeStencilCoefficients( cell_size,
+            stencil_coefs_x, stencil_coefs_y, stencil_coefs_z );
+
     } else {
         amrex::Abort("FiniteDifferenceSolver: Unknown algorithm");
     }

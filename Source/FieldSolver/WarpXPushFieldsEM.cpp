@@ -752,3 +752,135 @@ WarpX::ApplyInverseVolumeScalingToChargeDensity (MultiFab* Rho, int lev)
     }
 }
 #endif
+
+void
+WarpX::EvolveERIP (amrex::Real dt, bool half)
+{
+    // This is a loop over mesh-refinement levels. do not change, irrelevant for now
+    // (it only takes value lev = 0)
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        // Get the field data structures.
+        // hint: we have to calculate values at integer time steps using half time steps,
+        // and values at half time steps using integer time steps.
+        // If this is perfectly symmetric (I suspect this is for some fields, not for others,
+        // e.g. not for the current), we could use the exact same function but just swap the
+        // roles of Efield_fp and Efield_fp_half.
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efield = Efield_fp[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Bfield = Bfield_fp[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfield = current_fp[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efieldh = Efield_fp_half[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Bfieldh = Bfield_fp_half[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfieldo = current_fp_old[lev];
+
+        Real constexpr c2 = PhysConst::c * PhysConst::c;
+        // Loop through the grids, and over the tiles within each grid
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+        // Loop over boxes on this rank
+        for ( MFIter mfi(*Efield[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+            // Extract field data for this grid/tile
+            Array4<Real> const& Ex = Efield[0]->array(mfi);
+            Array4<Real> const& Ey = Efield[1]->array(mfi);
+            Array4<Real> const& Ez = Efield[2]->array(mfi);
+            Array4<Real> const& Bx = Bfield[0]->array(mfi);
+            Array4<Real> const& By = Bfield[1]->array(mfi);
+            Array4<Real> const& Bz = Bfield[2]->array(mfi);
+            Array4<Real> const& jx = Jfield[0]->array(mfi);
+            Array4<Real> const& jy = Jfield[1]->array(mfi);
+            Array4<Real> const& jz = Jfield[2]->array(mfi);
+            // also get RIP-specific fields
+            Array4<Real> const& Exh = Efieldh[0]->array(mfi);
+            Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
+            Array4<Real> const& Ezh = Efieldh[2]->array(mfi);
+            Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
+            Array4<Real> const& Byh = Bfieldh[1]->array(mfi);
+            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
+            Array4<Real> const& jxo = Jfieldo[0]->array(mfi);
+            Array4<Real> const& jyo = Jfieldo[1]->array(mfi);
+            Array4<Real> const& jzo = Jfieldo[2]->array(mfi);
+            // Extract tileboxes for which to loop
+            Box const& tex  = mfi.tilebox(Efield[0]->ixType().toIntVect());
+            Box const& tey  = mfi.tilebox(Efield[1]->ixType().toIntVect());
+            Box const& tez  = mfi.tilebox(Efield[2]->ixType().toIntVect());
+
+            // Loop over the cells and update the fields
+            // Note: these are of course absurd operations.
+            amrex::ParallelFor(
+                tex, tey, tez,
+
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Ex(i, j, k) = i;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Ey(i, j, k) += j;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Ez(i, j, k) += k*dt;
+                }
+                );
+        }
+    }
+}
+
+void
+WarpX::EvolveBRIP (amrex::Real dt, bool half)
+{
+    // Same for B
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Efield = Efield_fp[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > & Bfield = Bfield_fp[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfield = current_fp[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Efieldh = Efield_fp_half[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > & Bfieldh = Bfield_fp_half[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfieldo = current_fp_old[lev];
+
+        Real constexpr c2 = PhysConst::c * PhysConst::c;
+        // Loop through the grids, and over the tiles within each grid
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+        for ( MFIter mfi(*Bfield[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+            // Extract field data for this grid/tile
+            Array4<Real> const& Ex = Efield[0]->array(mfi);
+            Array4<Real> const& Ey = Efield[1]->array(mfi);
+            Array4<Real> const& Ez = Efield[2]->array(mfi);
+            Array4<Real> const& Bx = Bfield[0]->array(mfi);
+            Array4<Real> const& By = Bfield[1]->array(mfi);
+            Array4<Real> const& Bz = Bfield[2]->array(mfi);
+            Array4<Real> const& jx = Jfield[0]->array(mfi);
+            Array4<Real> const& jy = Jfield[1]->array(mfi);
+            Array4<Real> const& jz = Jfield[2]->array(mfi);
+            Array4<Real> const& Exh = Efieldh[0]->array(mfi);
+            Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
+            Array4<Real> const& Ezh = Efieldh[2]->array(mfi);
+            Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
+            Array4<Real> const& Byh = Bfieldh[1]->array(mfi);
+            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
+            Array4<Real> const& jxo = Jfieldo[0]->array(mfi);
+            Array4<Real> const& jyo = Jfieldo[1]->array(mfi);
+            Array4<Real> const& jzo = Jfieldo[2]->array(mfi);
+            // Extract tileboxes for which to loop
+            Box const& tex  = mfi.tilebox(Bfield[0]->ixType().toIntVect());
+            Box const& tey  = mfi.tilebox(Bfield[1]->ixType().toIntVect());
+            Box const& tez  = mfi.tilebox(Bfield[2]->ixType().toIntVect());
+
+            // Loop over the cells and update the fields
+            amrex::ParallelFor(
+                tex, tey, tez,
+
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Bx(i, j, k) = i;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    By(i, j, k) += j;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Bz(i, j, k) += k*dt;
+                }
+                );
+        }
+    }
+}

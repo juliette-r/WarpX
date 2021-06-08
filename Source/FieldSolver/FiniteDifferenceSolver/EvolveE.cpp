@@ -52,10 +52,6 @@ void FiniteDifferenceSolver::EvolveE (
 
         EvolveECartesian <CartesianCKCAlgorithm> ( Efield, Bfield, Jfield, edge_lengths, Ffield, lev, dt );
 
-    } else if (m_fdtd_algo == MaxwellSolverAlgo::RIP) {
-
-        EvolveECartesian <CartesianRIPAlgorithm> ( Efield, Bfield, Jfield, edge_lengths, Ffield, lev, dt );
-
 #endif
     } else {
         amrex::Abort("EvolveE: Unknown algorithm");

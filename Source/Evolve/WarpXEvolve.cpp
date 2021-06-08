@@ -405,6 +405,8 @@ WarpX::OneStep_nosub (Real cur_time)
     } else if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
         // RIP scheme
         amrex::Print()<<"RIP scheme\n";
+        EvolveERIP(dt[0], false);
+        EvolveBRIP(dt[0], false);
     } else {
         amrex::Abort("Umknown Maxwell Solver");
     }

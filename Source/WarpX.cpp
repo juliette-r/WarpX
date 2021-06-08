@@ -228,6 +228,9 @@ WarpX::WarpX ()
     current_fp.resize(nlevs_max);
     Efield_fp.resize(nlevs_max);
     Bfield_fp.resize(nlevs_max);
+    current_fp_old.resize(nlevs_max);
+    Efield_fp_half.resize(nlevs_max);
+    Bfield_fp_half.resize(nlevs_max);
     Efield_avg_fp.resize(nlevs_max);
     Bfield_avg_fp.resize(nlevs_max);
 
@@ -1163,6 +1166,9 @@ WarpX::ClearLevel (int lev)
         current_fp[lev][i].reset();
         Efield_fp [lev][i].reset();
         Bfield_fp [lev][i].reset();
+        current_fp_old[lev][i].reset();
+        Efield_fp_half [lev][i].reset();
+        Bfield_fp_half [lev][i].reset();
 
         current_store[lev][i].reset();
 
@@ -1274,6 +1280,8 @@ WarpX::AllocLevelMFs (int lev, const BoxArray& ba, const DistributionMapping& dm
     IntVect phi_nodal_flag;
 
     // Set nodal flags
+    // 0: cell-centered
+    // 1: nodal
 #if   (AMREX_SPACEDIM == 2)
     // AMReX convention: x = first dimension, y = missing dimension, z = second dimension
     Ex_nodal_flag = IntVect(0,1);
@@ -1285,6 +1293,17 @@ WarpX::AllocLevelMFs (int lev, const BoxArray& ba, const DistributionMapping& dm
     jx_nodal_flag = IntVect(0,1);
     jy_nodal_flag = IntVect(1,1);
     jz_nodal_flag = IntVect(1,0);
+    if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::PSATD) {
+        Ex_nodal_flag = IntVect(0,1);
+        Ey_nodal_flag = IntVect(1,1);
+        Ez_nodal_flag = IntVect(1,1);
+        Bx_nodal_flag = IntVect(1,1);
+        By_nodal_flag = IntVect(0,1);
+        Bz_nodal_flag = IntVect(0,1);
+        jx_nodal_flag = IntVect(0,1);
+        jy_nodal_flag = IntVect(1,1);
+        jz_nodal_flag = IntVect(1,1);
+    }
 #elif (AMREX_SPACEDIM == 3)
     Ex_nodal_flag = IntVect(0,1,1);
     Ey_nodal_flag = IntVect(1,0,1);
@@ -1295,6 +1314,17 @@ WarpX::AllocLevelMFs (int lev, const BoxArray& ba, const DistributionMapping& dm
     jx_nodal_flag = IntVect(0,1,1);
     jy_nodal_flag = IntVect(1,0,1);
     jz_nodal_flag = IntVect(1,1,0);
+    if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::PSATD) {
+        Ex_nodal_flag = IntVect(0,1,1);
+        Ey_nodal_flag = IntVect(1,0,1);
+        Ez_nodal_flag = IntVect(1,1,1);
+        Bx_nodal_flag = IntVect(1,0,1);
+        By_nodal_flag = IntVect(0,1,1);
+        Bz_nodal_flag = IntVect(0,0,1);
+        jx_nodal_flag = IntVect(0,1,1);
+        jy_nodal_flag = IntVect(1,0,1);
+        jz_nodal_flag = IntVect(1,1,1);
+    }
 #endif
     rho_nodal_flag = IntVect( AMREX_D_DECL(1,1,1) );
     phi_nodal_flag = IntVect::TheNodeVector();
@@ -1349,14 +1379,23 @@ WarpX::AllocLevelMFs (int lev, const BoxArray& ba, const DistributionMapping& dm
     Bfield_fp[lev][0] = std::make_unique<MultiFab>(amrex::convert(ba,Bx_nodal_flag),dm,ncomps,ngE,tag("Bfield_fp[x]"));
     Bfield_fp[lev][1] = std::make_unique<MultiFab>(amrex::convert(ba,By_nodal_flag),dm,ncomps,ngE,tag("Bfield_fp[y]"));
     Bfield_fp[lev][2] = std::make_unique<MultiFab>(amrex::convert(ba,Bz_nodal_flag),dm,ncomps,ngE,tag("Bfield_fp[z]"));
+    Bfield_fp_half[lev][0] = std::make_unique<MultiFab>(amrex::convert(ba,Bx_nodal_flag),dm,ncomps,ngE,tag("Bfield_fp_half[x]"));
+    Bfield_fp_half[lev][1] = std::make_unique<MultiFab>(amrex::convert(ba,By_nodal_flag),dm,ncomps,ngE,tag("Bfield_fp_half[y]"));
+    Bfield_fp_half[lev][2] = std::make_unique<MultiFab>(amrex::convert(ba,Bz_nodal_flag),dm,ncomps,ngE,tag("Bfield_fp_half[z]"));
 
     Efield_fp[lev][0] = std::make_unique<MultiFab>(amrex::convert(ba,Ex_nodal_flag),dm,ncomps,ngE,tag("Efield_fp[x]"));
     Efield_fp[lev][1] = std::make_unique<MultiFab>(amrex::convert(ba,Ey_nodal_flag),dm,ncomps,ngE,tag("Efield_fp[y]"));
     Efield_fp[lev][2] = std::make_unique<MultiFab>(amrex::convert(ba,Ez_nodal_flag),dm,ncomps,ngE,tag("Efield_fp[z]"));
+    Efield_fp_half[lev][0] = std::make_unique<MultiFab>(amrex::convert(ba,Ex_nodal_flag),dm,ncomps,ngE,tag("Efield_fp_half[x]"));
+    Efield_fp_half[lev][1] = std::make_unique<MultiFab>(amrex::convert(ba,Ey_nodal_flag),dm,ncomps,ngE,tag("Efield_fp_half[y]"));
+    Efield_fp_half[lev][2] = std::make_unique<MultiFab>(amrex::convert(ba,Ez_nodal_flag),dm,ncomps,ngE,tag("Efield_fp_half[z]"));
 
     current_fp[lev][0] = std::make_unique<MultiFab>(amrex::convert(ba,jx_nodal_flag),dm,ncomps,ngJ,tag("current_fp[x]"));
     current_fp[lev][1] = std::make_unique<MultiFab>(amrex::convert(ba,jy_nodal_flag),dm,ncomps,ngJ,tag("current_fp[y]"));
     current_fp[lev][2] = std::make_unique<MultiFab>(amrex::convert(ba,jz_nodal_flag),dm,ncomps,ngJ,tag("current_fp[z]"));
+    current_fp_old[lev][0] = std::make_unique<MultiFab>(amrex::convert(ba,jx_nodal_flag),dm,ncomps,ngJ,tag("current_fp_old[x]"));
+    current_fp_old[lev][1] = std::make_unique<MultiFab>(amrex::convert(ba,jy_nodal_flag),dm,ncomps,ngJ,tag("current_fp_old[y]"));
+    current_fp_old[lev][2] = std::make_unique<MultiFab>(amrex::convert(ba,jz_nodal_flag),dm,ncomps,ngJ,tag("current_fp_old[z]"));
 
     if (do_current_centering)
     {
