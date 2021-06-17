@@ -756,16 +756,10 @@ WarpX::ApplyInverseVolumeScalingToChargeDensity (MultiFab* Rho, int lev)
 void
 WarpX::EvolveRIP (amrex::Real dt, bool half)
 {
-    // This is a loop over mesh-refinement levels. do not change, irrelevant for now
-    // (it only takes value lev = 0)
+    // Loop over mesh-refinement levels
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        // Get the field data structures.
-        // hint: we have to calculate values at integer time steps using half time steps,
-        // and values at half time steps using integer time steps.
-        // If this is perfectly symmetric (I suspect this is for some fields, not for others,
-        // e.g. not for the current), we could use the exact same function but just swap the
-        // roles of Efield_fp and Efield_fp_half.
+        // Get the field data structures
         std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efield = Efield_fp[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfield = Bfield_fp[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfield = current_fp[lev];
@@ -773,54 +767,79 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
         std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfieldh = Bfield_fp_half[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfieldo = current_fp_old[lev];
 
+        // Get parameters of cells
         std::array<Real,3> dx = CellSize(lev);
 
-        // Temporary fields to update E and B at time step n+1 using E and B at time step n
-
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Eh_tmp ;
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bh_tmp ;
-
-// Updating E at time step n+1/2
+// Updating E and B at time step n+1/2
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         // Loop over boxes on this rank
         for ( MFIter mfi(*Efieldh[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+
             // Extract field data for this grid/tile
+
+            // E and B at time step n-1/2
             Array4<Real> const& Exh = Efieldh[0]->array(mfi);
             Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
             Array4<Real> const& Ezh = Efieldh[2]->array(mfi);
-    
-            Array4<Real> const& Exh_tmp = Eh_tmp[0]->array(mfi);
-            Array4<Real> const& Eyh_tmp = Eh_tmp[1]->array(mfi);
-            Array4<Real> const& Ezh_tmp = Eh_tmp[2]->array(mfi);
 
             Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
             Array4<Real> const& Byh = Bfieldh[1]->array(mfi);
+            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
 
+            // Current at time step n+1/2
             Array4<Real> const& jx = Jfield[0]->array(mfi);
             Array4<Real> const& jy = Jfield[1]->array(mfi);
             Array4<Real> const& jz = Jfield[2]->array(mfi);
 
-            // also get RIP-specific fields
+            // Current at time step n-1/2
+            Array4<Real> const& jxo = Jfieldo[0]->array(mfi);
+            Array4<Real> const& jyo = Jfieldo[1]->array(mfi);
+            Array4<Real> const& jzo = Jfieldo[2]->array(mfi);
+
+            // Get RIP-specific fields : E and B at time step n
+            Array4<Real> const& Ex = Efield[0]->array(mfi);
+            Array4<Real> const& Ey = Efield[1]->array(mfi);
             Array4<Real> const& Ez = Efield[2]->array(mfi);
 
             Array4<Real> const& Bx = Bfield[0]->array(mfi);
             Array4<Real> const& By = Bfield[1]->array(mfi);
             Array4<Real> const& Bz = Bfield[2]->array(mfi);
 
-            Array4<Real> const& jxo = Jfieldo[0]->array(mfi);
-            Array4<Real> const& jyo = Jfieldo[1]->array(mfi);
-            Array4<Real> const& jzo = Jfieldo[2]->array(mfi);
-
             // Extract tileboxes for which to loop
             Box const& tex  = mfi.tilebox(Efieldh[0]->ixType().toIntVect());
             Box const& tey  = mfi.tilebox(Efieldh[1]->ixType().toIntVect());
             Box const& tez  = mfi.tilebox(Efieldh[2]->ixType().toIntVect());
 
-            // Loop over the cells and update the fields    
-            // Field E at time step n+1/2, depending on fields E and B at time steps n and n-1/2 :
+            Box const& tbx  = mfi.tilebox(Bfieldh[0]->ixType().toIntVect());
+            Box const& tby  = mfi.tilebox(Bfieldh[1]->ixType().toIntVect());
+            Box const& tbz  = mfi.tilebox(Bfieldh[2]->ixType().toIntVect());
 
+            // Temporary fields to update E and B at time step n+1/2 using E and B at time step n-1/2
+            FArrayBox fab_Exh_tmp(tex, 1);
+            FArrayBox fab_Eyh_tmp(tey, 1);
+            FArrayBox fab_Ezh_tmp(tez, 1);
+            fab_Exh_tmp.setVal(0.);
+            fab_Eyh_tmp.setVal(0.);
+            fab_Ezh_tmp.setVal(0.);
+            Array4<Real> const& Exh_tmp = fab_Exh_tmp.array();
+            Array4<Real> const& Eyh_tmp = fab_Eyh_tmp.array();
+            Array4<Real> const& Ezh_tmp = fab_Ezh_tmp.array();
+
+            FArrayBox fab_Bxh_tmp(tbx, 1);
+            FArrayBox fab_Byh_tmp(tby, 1);
+            FArrayBox fab_Bzh_tmp(tbz, 1);
+            fab_Bxh_tmp.setVal(0.);
+            fab_Byh_tmp.setVal(0.);
+            fab_Bzh_tmp.setVal(0.);
+            Array4<Real> const& Bxh_tmp = fab_Bxh_tmp.array();
+            Array4<Real> const& Byh_tmp = fab_Byh_tmp.array();
+            Array4<Real> const& Bzh_tmp = fab_Bzh_tmp.array();
+
+            // Loops over the cells and update the fields  
+             
+            // Field E at time step n+1/2, depending on fields E and B at time steps n and n-1/2 :
             amrex::ParallelFor(
                 tex, tey, tez,
 
@@ -852,47 +871,9 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 }
                 );
             
-        }
-
-// Updating B at time step n+1/2
-#ifdef AMREX_USE_OMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        for ( MFIter mfi(*Bfieldh[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            // Extract field data for this grid/tile
-            Array4<Real> const& Exh = Efieldh[0]->array(mfi);
-            Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
-
-            Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
-            Array4<Real> const& Byh = Bfieldh[1]->array(mfi);
-            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
-
-            Array4<Real> const& Bxh_tmp = Bh_tmp[0]->array(mfi);
-            Array4<Real> const& Byh_tmp = Bh_tmp[1]->array(mfi);
-            Array4<Real> const& Bzh_tmp = Bh_tmp[2]->array(mfi);
-
-            Array4<Real> const& jx = Jfield[0]->array(mfi);
-            Array4<Real> const& jy = Jfield[1]->array(mfi);
-
-            Array4<Real> const& jxo = Jfieldo[0]->array(mfi);
-            Array4<Real> const& jyo = Jfieldo[1]->array(mfi);
-
-            Array4<Real> const& Ex = Efield[0]->array(mfi);
-            Array4<Real> const& Ey = Efield[1]->array(mfi);
-            Array4<Real> const& Ez = Efield[2]->array(mfi);
-
-            Array4<Real> const& Bz = Bfield[2]->array(mfi);
-
-            // Extract tileboxes for which to loop
-            Box const& tex  = mfi.tilebox(Bfieldh[0]->ixType().toIntVect());
-            Box const& tey  = mfi.tilebox(Bfieldh[1]->ixType().toIntVect());
-            Box const& tez  = mfi.tilebox(Bfieldh[2]->ixType().toIntVect());
-
-            // Loop over the cells and update the fields    
-            // Field B at time step n+1/2, depending on E and B at time steps n and n-1/2 :
-
+            // Field B at time step n+1/2, depending on fields E and B at time steps n and n-1/2 :
             amrex::ParallelFor(
-                tex, tey, tez,
+                tbx, tby, tbz,
 
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
@@ -920,56 +901,79 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     Bzh_tmp(i, j, k) = Bzh(i,j,k) + dx[2]*phi_z ;
                 }
                 );
-        }
 
-        Efieldh = Eh_tmp ;
-        Bfieldh = Bh_tmp ;
+            // Overwrite the values at time step n+1/2 kept in the temporary arrays on the regular arrays
+            // For E
+            amrex::ParallelFor(
+                tex, tey, tez,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Exh(i,j,k) = Exh_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Eyh(i,j,k) = Eyh_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Ezh(i,j,k) = Ezh_tmp(i,j,k);
+                }
+                );
+            
+            // For B 
+            amrex::ParallelFor(
+                tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Bxh(i,j,k) = Bxh_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Byh(i,j,k) = Byh_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Bzh(i,j,k) = Bzh_tmp(i,j,k);
+                }
+                );    
+
+        }
 
     }
 
-    for (int lev = 0; lev <= finest_level; ++lev)
+   for (int lev = 0; lev <= finest_level; ++lev)
     {
-        // Get the field data structures.
-        // hint: we have to calculate values at integer time steps using half time steps,
-        // and values at half time steps using integer time steps.
-        // If this is perfectly symmetric (I suspect this is for some fields, not for others,
-        // e.g. not for the current), we could use the exact same function but just swap the
-        // roles of Efield_fp and Efield_fp_half.
+        // Get the field data structures
         std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efield = Efield_fp[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfield = Bfield_fp[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfield = current_fp[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efieldh = Efield_fp_half[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfieldh = Bfield_fp_half[lev];
 
+        // Get the parameters of the cells
         std::array<Real,3> dx = CellSize(lev);
 
-        // Temporary fields to update E and B at time step n+1 using E and B at time step n
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 > & E_tmp ;
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 > & B_tmp ;
 
-// Updating E at time step n+1        
+// Updating E and B at time step n+1        
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         // Loop over boxes on this rank
         for ( MFIter mfi(*Efield[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+
             // Extract field data for this grid/tile
+
+            // E and B at time step n 
             Array4<Real> const& Ex = Efield[0]->array(mfi);
             Array4<Real> const& Ey = Efield[1]->array(mfi);
             Array4<Real> const& Ez = Efield[2]->array(mfi);
     
-            Array4<Real> const& Ex_tmp = E_tmp[0]->array(mfi);
-            Array4<Real> const& Ey_tmp = E_tmp[1]->array(mfi);
-            Array4<Real> const& Ez_tmp = E_tmp[2]->array(mfi);
-
             Array4<Real> const& Bx = Bfield[0]->array(mfi);
             Array4<Real> const& By = Bfield[1]->array(mfi);
+            Array4<Real> const& Bz = Bfield[2]->array(mfi);
 
+            // Current at time step n+1/2
             Array4<Real> const& jx = Jfield[0]->array(mfi);
             Array4<Real> const& jy = Jfield[1]->array(mfi);
             Array4<Real> const& jz = Jfield[2]->array(mfi);
 
-            // also get RIP-specific fields
+            // Get RIP-specific fields : E and B at time step n+1/2
+            Array4<Real> const& Exh = Efieldh[0]->array(mfi);
+            Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
             Array4<Real> const& Ezh = Efieldh[2]->array(mfi);
 
             Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
@@ -981,9 +985,34 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
             Box const& tey  = mfi.tilebox(Efield[1]->ixType().toIntVect());
             Box const& tez  = mfi.tilebox(Efield[2]->ixType().toIntVect());
 
-            // Loop over the cells and update the fields    
-            // Field E at time step n+1, depending on fields E and B at time steps n and n+1/2 :
+            Box const& tbx  = mfi.tilebox(Bfield[0]->ixType().toIntVect());
+            Box const& tby  = mfi.tilebox(Bfield[1]->ixType().toIntVect());
+            Box const& tbz  = mfi.tilebox(Bfield[2]->ixType().toIntVect());
 
+            // Temporary fields to update E and B at time step n+1 using E and B at time step n
+            FArrayBox fab_Ex_tmp(tex, 1);
+            FArrayBox fab_Ey_tmp(tey, 1);
+            FArrayBox fab_Ez_tmp(tez, 1);
+            fab_Ex_tmp.setVal(0.);
+            fab_Ey_tmp.setVal(0.);
+            fab_Ez_tmp.setVal(0.);
+            Array4<Real> const& Ex_tmp = fab_Ex_tmp.array();
+            Array4<Real> const& Ey_tmp = fab_Ey_tmp.array();
+            Array4<Real> const& Ez_tmp = fab_Ez_tmp.array();
+
+            FArrayBox fab_Bx_tmp(tbx, 1);
+            FArrayBox fab_By_tmp(tby, 1);
+            FArrayBox fab_Bz_tmp(tbz, 1);
+            fab_Bx_tmp.setVal(0.);
+            fab_By_tmp.setVal(0.);
+            fab_Bz_tmp.setVal(0.);
+            Array4<Real> const& Bx_tmp = fab_Bx_tmp.array();
+            Array4<Real> const& By_tmp = fab_By_tmp.array();
+            Array4<Real> const& Bz_tmp = fab_Bz_tmp.array();
+
+            // Loop over the cells and update the fields 
+
+            // Field E at time step n+1, depending on fields E and B at time steps n and n+1/2 :
             amrex::ParallelFor(
                 tex, tey, tez,
 
@@ -1014,45 +1043,10 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     Ez_tmp(i,j,k) = Ez(i,j,k) + dx[2]*gamma_z ;
                 }
                 );
-            
-        }
 
-// Updating B at time step n+1
-#ifdef AMREX_USE_OMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        for ( MFIter mfi(*Bfield[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            // Extract field data for this grid/tile
-            Array4<Real> const& Ex = Efield[0]->array(mfi);
-            Array4<Real> const& Ey = Efield[1]->array(mfi) ;
-
-            Array4<Real> const& Bx = Bfield[0]->array(mfi);
-            Array4<Real> const& By = Bfield[1]->array(mfi);
-            Array4<Real> const& Bz = Bfield[2]->array(mfi);
-
-            Array4<Real> const& Bx_tmp = B_tmp[0]->array(mfi);
-            Array4<Real> const& By_tmp = B_tmp[1]->array(mfi);
-            Array4<Real> const& Bz_tmp = B_tmp[2]->array(mfi);
-
-            Array4<Real> const& jx = Jfield[0]->array(mfi);
-            Array4<Real> const& jy = Jfield[1]->array(mfi);
-
-            Array4<Real> const& Exh = Efieldh[0]->array(mfi);
-            Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
-            Array4<Real> const& Ezh = Efieldh[2]->array(mfi);
-
-            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
-
-            // Extract tileboxes for which to loop
-            Box const& tex  = mfi.tilebox(Bfield[0]->ixType().toIntVect());
-            Box const& tey  = mfi.tilebox(Bfield[1]->ixType().toIntVect());
-            Box const& tez  = mfi.tilebox(Bfield[2]->ixType().toIntVect());
-
-            // Loop over the cells and update the fields    
-            // Field B at time step n+1, depending on E and B at time steps n and n+1/2 :
-
+            // Field B at time step n+1, depending on fields E and B at time steps n and n+1/2 :
             amrex::ParallelFor(
-                tex, tey, tez,
+                tbx, tby, tbz,
 
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
@@ -1080,10 +1074,37 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     Bz_tmp(i, j, k) = Bz(i,j,k) + dx[2]*phi_z ;
                 }
                 );
+            
+            // Overwrite the values at time step n+1 kept in the temporary arrays on the regular arrays
+            // For E
+            amrex::ParallelFor(
+                tex, tey, tez,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Ex(i,j,k) = Ex_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Ey(i,j,k) = Ey_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Ez(i,j,k) = Ez_tmp(i,j,k);
+                }
+                );
+            
+            // For B 
+            amrex::ParallelFor(
+                tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Bx(i,j,k) = Bx_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    By(i,j,k) = By_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Bz(i,j,k) = Bz_tmp(i,j,k);
+                }
+                );
+            
         }
-
-    Efield = E_tmp ;
-    Bfield = B_tmp ;
 
     }
 }
