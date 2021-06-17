@@ -775,34 +775,29 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
         std::array<Real,3> dx = CellSize(lev);
 
-        // Temporary fields to update E and B at time step n+1 using E and B at time step n
-
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Eh_tmp ;
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bh_tmp ;
-
 // Updating E at time step n+1/2
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         // Loop over boxes on this rank
         for ( MFIter mfi(*Efieldh[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+
             // Extract field data for this grid/tile
             Array4<Real> const& Exh = Efieldh[0]->array(mfi);
             Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
             Array4<Real> const& Ezh = Efieldh[2]->array(mfi);
-    
-            Array4<Real> const& Exh_tmp = Eh_tmp[0]->array(mfi);
-            Array4<Real> const& Eyh_tmp = Eh_tmp[1]->array(mfi);
-            Array4<Real> const& Ezh_tmp = Eh_tmp[2]->array(mfi);
 
             Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
             Array4<Real> const& Byh = Bfieldh[1]->array(mfi);
+            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
 
             Array4<Real> const& jx = Jfield[0]->array(mfi);
             Array4<Real> const& jy = Jfield[1]->array(mfi);
             Array4<Real> const& jz = Jfield[2]->array(mfi);
 
             // also get RIP-specific fields
+            Array4<Real> const& Ex = Efield[0]->array(mfi);
+            Array4<Real> const& Ey = Efield[1]->array(mfi);
             Array4<Real> const& Ez = Efield[2]->array(mfi);
 
             Array4<Real> const& Bx = Bfield[0]->array(mfi);
@@ -818,14 +813,25 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
             Box const& tey  = mfi.tilebox(Efieldh[1]->ixType().toIntVect());
             Box const& tez  = mfi.tilebox(Efieldh[2]->ixType().toIntVect());
 
-            // Loop over the cells and update the fields    
+            // Temporary fields to update E and B at time step n+1 using E and B at time step n
+            FArrayBox fab_Exh_tmp(tex, 1);
+            FArrayBox fab_Eyh_tmp(tey, 1);
+            FArrayBox fab_Ezh_tmp(tez, 1);
+            fab_Exh_tmp.setVal(0.);
+            fab_Eyh_tmp.setVal(0.);
+            fab_Ezh_tmp.setVal(0.);
+            Array4<Real> const& Exh_tmp = fab_Exh_tmp.array();
+            Array4<Real> const& Eyh_tmp = fab_Eyh_tmp.array();
+            Array4<Real> const& Ezh_tmp = fab_Ezh_tmp.array();
+
+            // Loop over the cells and update the fields
             // Field E at time step n+1/2, depending on fields E and B at time steps n and n-1/2 :
 
             amrex::ParallelFor(
                 tex, tey, tez,
 
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
-                  
+
                     amrex::Real gamma_x_p = -(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + (Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
                     amrex::Real gamma_x_m = -(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + (Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
 
@@ -833,7 +839,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     amrex::Real phi_y_m = (Ez(i+1,j  ,k-1)+Ez(i+1,j  ,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[0]) ;
 
                     Exh_tmp(i,j,k) = (Exh(i,j,k-1) + Exh(i,j,k+1))/2 - (Byh(i,j,k+1) - Byh(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
-                                     
+
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
@@ -851,48 +857,28 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     Ezh_tmp(i,j,k) = Ezh(i,j,k) + dx[2]*gamma_z ;
                 }
                 );
-            
-        }
-
-// Updating B at time step n+1/2
-#ifdef AMREX_USE_OMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        for ( MFIter mfi(*Bfieldh[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            // Extract field data for this grid/tile
-            Array4<Real> const& Exh = Efieldh[0]->array(mfi);
-            Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
-
-            Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
-            Array4<Real> const& Byh = Bfieldh[1]->array(mfi);
-            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
-
-            Array4<Real> const& Bxh_tmp = Bh_tmp[0]->array(mfi);
-            Array4<Real> const& Byh_tmp = Bh_tmp[1]->array(mfi);
-            Array4<Real> const& Bzh_tmp = Bh_tmp[2]->array(mfi);
-
-            Array4<Real> const& jx = Jfield[0]->array(mfi);
-            Array4<Real> const& jy = Jfield[1]->array(mfi);
-
-            Array4<Real> const& jxo = Jfieldo[0]->array(mfi);
-            Array4<Real> const& jyo = Jfieldo[1]->array(mfi);
-
-            Array4<Real> const& Ex = Efield[0]->array(mfi);
-            Array4<Real> const& Ey = Efield[1]->array(mfi);
-            Array4<Real> const& Ez = Efield[2]->array(mfi);
-
-            Array4<Real> const& Bz = Bfield[2]->array(mfi);
 
             // Extract tileboxes for which to loop
-            Box const& tex  = mfi.tilebox(Bfieldh[0]->ixType().toIntVect());
-            Box const& tey  = mfi.tilebox(Bfieldh[1]->ixType().toIntVect());
-            Box const& tez  = mfi.tilebox(Bfieldh[2]->ixType().toIntVect());
+            Box const& tbx  = mfi.tilebox(Bfieldh[0]->ixType().toIntVect());
+            Box const& tby  = mfi.tilebox(Bfieldh[1]->ixType().toIntVect());
+            Box const& tbz  = mfi.tilebox(Bfieldh[2]->ixType().toIntVect());
 
-            // Loop over the cells and update the fields    
+            // Temporary fields to update E and B at time step n+1 using E and B at time step n
+            FArrayBox fab_Bxh_tmp(tbx, 1);
+            FArrayBox fab_Byh_tmp(tby, 1);
+            FArrayBox fab_Bzh_tmp(tbz, 1);
+            fab_Bxh_tmp.setVal(0.);
+            fab_Byh_tmp.setVal(0.);
+            fab_Bzh_tmp.setVal(0.);
+            Array4<Real> const& Bxh_tmp = fab_Bxh_tmp.array();
+            Array4<Real> const& Byh_tmp = fab_Byh_tmp.array();
+            Array4<Real> const& Bzh_tmp = fab_Bzh_tmp.array();
+
+            // Loop over the cells and update the fields
             // Field B at time step n+1/2, depending on E and B at time steps n and n-1/2 :
 
             amrex::ParallelFor(
-                tex, tey, tez,
+                tbx, tby, tbz,
 
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
@@ -920,13 +906,24 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     Bzh_tmp(i, j, k) = Bzh(i,j,k) + dx[2]*phi_z ;
                 }
                 );
+
+            amrex::ParallelFor(
+                tex, tey, tez,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Exh(i,j,k) = Exh_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Eyh(i,j,k) = Eyh_tmp(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+                    Ezh(i,j,k) = Ezh_tmp(i,j,k);
+                }
+                );
+
+            // DO THE SAME FOR B
         }
-
-        Efieldh = Eh_tmp ;
-        Bfieldh = Bh_tmp ;
-
     }
-
+/*
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         // Get the field data structures.
@@ -947,7 +944,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
         std::array< std::unique_ptr<amrex::MultiFab>, 3 > & E_tmp ;
         std::array< std::unique_ptr<amrex::MultiFab>, 3 > & B_tmp ;
 
-// Updating E at time step n+1        
+// Updating E at time step n+1
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -957,7 +954,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
             Array4<Real> const& Ex = Efield[0]->array(mfi);
             Array4<Real> const& Ey = Efield[1]->array(mfi);
             Array4<Real> const& Ez = Efield[2]->array(mfi);
-    
+
             Array4<Real> const& Ex_tmp = E_tmp[0]->array(mfi);
             Array4<Real> const& Ey_tmp = E_tmp[1]->array(mfi);
             Array4<Real> const& Ez_tmp = E_tmp[2]->array(mfi);
@@ -981,14 +978,14 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
             Box const& tey  = mfi.tilebox(Efield[1]->ixType().toIntVect());
             Box const& tez  = mfi.tilebox(Efield[2]->ixType().toIntVect());
 
-            // Loop over the cells and update the fields    
+            // Loop over the cells and update the fields
             // Field E at time step n+1, depending on fields E and B at time steps n and n+1/2 :
 
             amrex::ParallelFor(
                 tex, tey, tez,
 
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
-                  
+
                     amrex::Real gamma_x_p = -(jx(i+1,j  ,k+1)+jx(i+1,j  ,k  ))/2 + (Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i+1,j  ,k  )-Bzh(i+1,j  ,k+1))/(2*dx[1]) ;
                     amrex::Real gamma_x_m = -(jx(i+1,j  ,k  )+jx(i+1,j  ,k-1))/2 + (Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i+1,j  ,k-1)-Bzh(i+1,j  ,k  ))/(2*dx[1]) ;
 
@@ -996,7 +993,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     amrex::Real phi_y_m = (Ezh(i+1,j  ,k-1)+Ezh(i+1,j  ,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[0]) ;
 
                     Ex_tmp(i,j,k) = (Ex(i,j,k-1) + Ex(i,j,k+1))/2 - (By(i,j,k+1) - By(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
-                                     
+
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
@@ -1014,7 +1011,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     Ez_tmp(i,j,k) = Ez(i,j,k) + dx[2]*gamma_z ;
                 }
                 );
-            
+
         }
 
 // Updating B at time step n+1
@@ -1048,7 +1045,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
             Box const& tey  = mfi.tilebox(Bfield[1]->ixType().toIntVect());
             Box const& tez  = mfi.tilebox(Bfield[2]->ixType().toIntVect());
 
-            // Loop over the cells and update the fields    
+            // Loop over the cells and update the fields
             // Field B at time step n+1, depending on E and B at time steps n and n+1/2 :
 
             amrex::ParallelFor(
@@ -1086,4 +1083,5 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
     Bfield = B_tmp ;
 
     }
+*/
 }
