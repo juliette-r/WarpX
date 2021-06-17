@@ -407,10 +407,8 @@ WarpX::OneStep_nosub (Real cur_time)
         // Note: I only created empty current arrays appended with _old
         // to store the value from the previous time step, so you can do the averaging.
         // You will need to fill it with the old value when needed, and take care of the averaging.
-        // Test
         amrex::Print()<<"RIP scheme\n";
-        EvolveERIP(dt[0], false);
-        EvolveBRIP(dt[0], false);
+        EvolveRIP(dt[0], false);
     } else {
         amrex::Abort("Umknown Maxwell Solver");
     }
