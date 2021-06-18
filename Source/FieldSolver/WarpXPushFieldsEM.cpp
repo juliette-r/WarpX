@@ -893,7 +893,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     amrex::Real phi_y_p = (Ez(i+1,j  ,k  )+Ez(i+1,j  ,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ez(i+1,j  ,k-1)+Ez(i+1,j  ,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[0]) ;
 
-                    Byh_tmp(i, j, k) = (Byh(i,j,k-1) + Byh(i,j,k+1))/2 - (Exh(i,j,k+1 - Exh(i,j,k-1)))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
+                    Byh_tmp(i, j, k) = (Byh(i,j,k-1) + Byh(i,j,k+1))/2 - (Exh(i,j,k+1) - Exh(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
@@ -1066,7 +1066,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     amrex::Real phi_y_p = (Ezh(i+1,j  ,k  )+Ezh(i+1,j  ,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ezh(i+1,j  ,k-1)+Ezh(i+1,j  ,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[0]) ;
 
-                    By_tmp(i, j, k) = (By(i,j,k-1) + By(i,j,k+1))/2 - (Ex(i,j,k+1 - Ex(i,j,k-1)))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
+                    By_tmp(i, j, k) = (By(i,j,k-1) + By(i,j,k+1))/2 - (Ex(i,j,k+1) - Ex(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
