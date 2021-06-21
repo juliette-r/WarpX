@@ -1293,7 +1293,7 @@ WarpX::AllocLevelMFs (int lev, const BoxArray& ba, const DistributionMapping& dm
     jx_nodal_flag = IntVect(0,1);
     jy_nodal_flag = IntVect(1,1);
     jz_nodal_flag = IntVect(1,0);
-    if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::PSATD) {
+    if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
         Ex_nodal_flag = IntVect(0,1);
         Ey_nodal_flag = IntVect(1,1);
         Ez_nodal_flag = IntVect(1,1);
@@ -1314,7 +1314,7 @@ WarpX::AllocLevelMFs (int lev, const BoxArray& ba, const DistributionMapping& dm
     jx_nodal_flag = IntVect(0,1,1);
     jy_nodal_flag = IntVect(1,0,1);
     jz_nodal_flag = IntVect(1,1,0);
-    if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::PSATD) {
+    if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
         Ex_nodal_flag = IntVect(0,1,1);
         Ey_nodal_flag = IntVect(1,0,1);
         Ez_nodal_flag = IntVect(1,1,1);
