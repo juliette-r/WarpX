@@ -756,6 +756,10 @@ WarpX::ApplyInverseVolumeScalingToChargeDensity (MultiFab* Rho, int lev)
 void
 WarpX::EvolveRIP (amrex::Real dt, bool half)
 {
+
+    Real constexpr c = PhysConst::c ; 
+    Real constexpr mu0 = PhysConst::mu0 ; 
+
     // Loop over mesh-refinement levels
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -781,7 +785,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
         // Loop over boxes on this rank
         std::cout << "Before Loop MFI for half time step" << std::endl ;
 
-        for ( MFIter mfi(*Efieldh[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        for ( MFIter mfi(*Efieldh[0], false); mfi.isValid(); ++mfi )  {
 
             std::cout << "Loop MFI for half time step" << std::endl ;
 
@@ -855,23 +859,23 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                   
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_x_p = -(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + (Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real gamma_x_m = -(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + (Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
 
                     amrex::Real phi_y_p = (Ez(i+1,j  ,k  )+Ez(i+1,j  ,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ez(i+1,j  ,k-1)+Ez(i+1,j  ,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[0]) ;
 
-                    Exh_tmp(i,j,k) = (Exh(i,j,k-1) + Exh(i,j,k+1))/2 - (Byh(i,j,k+1) - Byh(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
+                    Exh_tmp(i,j,k) = (Exh(i,j,k-1) + Exh(i,j,k+1))/2 - c*(Byh(i,j,k+1) - Byh(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
 
 #elif defined WARPX_DIM_XZ
                     
-                    amrex::Real gamma_x_p = -(jx(i+1,j+1,0)+jxo(i+1,j+1,0)+jx(i+1,j  ,0)+jxo(i+1,j  ,0))/4 ;
-                    amrex::Real gamma_x_m = -(jx(i+1,j  ,0)+jxo(i+1,j  ,0)+jx(i+1,j-1,0)+jxo(i+1,j-1,0))/4 ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j+1,0)+jxo(i+1,j+1,0)+jx(i+1,j  ,0)+jxo(i+1,j  ,0))/4 ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,0)+jxo(i+1,j  ,0)+jx(i+1,j-1,0)+jxo(i+1,j-1,0))/4 ;
 
                     amrex::Real phi_y_p = (Ez(i+1,j  ,0)+Ez(i+1,j+1,0)-Ez(i  ,j  ,0)-Ez(i  ,j+1,0))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ez(i+1,j-1,0)+Ez(i+1,j  ,0)-Ez(i  ,j-1,0)-Ez(i  ,j  ,0))/(2*dx[0]) ;
 
-                    Exh_tmp(i,j,0) = (Exh(i,j-1,0) + Exh(i,j+1,0))/2 - (Byh(i,j+1,0) - Byh(i,j-1,0))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
+                    Exh_tmp(i,j,0) = (Exh(i,j-1,0) + Exh(i,j+1,0))/2 - c*(Byh(i,j+1,0) - Byh(i,j-1,0))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
@@ -883,20 +887,20 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_y_p = -(jy(i  ,j+1,k  )+jyo(i  ,j+1,k  )+jy(i  ,j+1,k+1)+jyo(i  ,j+1,k+1))/4 - (Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i  ,j+1,k  )-Bz(i  ,j+1,k+1))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -(jy(i  ,j+1,k-1)+jyo(i  ,j+1,k-1)+jy(i  ,j+1,k  )+jyo(i  ,j+1,k  ))/4 - (Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i  ,j+1,k-1)-Bz(i  ,j+1,k  ))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jyo(i  ,j+1,k  )+jy(i  ,j+1,k+1)+jyo(i  ,j+1,k+1))/4 - c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i  ,j+1,k  )-Bz(i  ,j+1,k+1))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jyo(i  ,j+1,k-1)+jy(i  ,j+1,k  )+jyo(i  ,j+1,k  ))/4 - c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i  ,j+1,k-1)-Bz(i  ,j+1,k  ))/(2*dx[0]) ;
 
                     amrex::Real phi_x_p = -(Ez(i  ,j+1,k  )+Ez(i  ,j+1,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[1]) ;
                     amrex::Real phi_x_m = -(Ez(i  ,j+1,k-1)+Ez(i  ,j+1,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[1]) ;
 
-                    Eyh_tmp(i,j,k) =  (Eyh(i,j,k-1) + Eyh(i,j,k+1))/2 + (Bxh(i,j,k+1) - Bxh(i,j,k-1))/2 + (gamma_y_m - phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2  ;
+                    Eyh_tmp(i,j,k) =  (Eyh(i,j,k-1) + Eyh(i,j,k+1))/2 + c*(Bxh(i,j,k+1) - Bxh(i,j,k-1))/2 + (gamma_y_m - phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2  ;
                 
 #elif defined WARPX_DIM_XZ
                     
-                    amrex::Real gamma_y_p = -(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - (Bz(i+1,j  ,0)+Bz(i+1,j+1,0)-Bz(i  ,j  ,0)-Bz(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - (Bz(i+1,j-1,0)+Bz(i+1,j  ,0)-Bz(i  ,j-1,0)-Bz(i  ,j  ,0))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - c*(Bz(i+1,j  ,0)+Bz(i+1,j+1,0)-Bz(i  ,j  ,0)-Bz(i  ,j+1,0))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bz(i+1,j-1,0)+Bz(i+1,j  ,0)-Bz(i  ,j-1,0)-Bz(i  ,j  ,0))/(2*dx[0]) ;
 
-                    Eyh_tmp(i,j,0) =  (Eyh(i,j-1,0) + Eyh(i,j+1,0))/2 + (Bxh(i,j+1,0) - Bxh(i,j-1,0))/2 + (gamma_y_m + gamma_y_p)*dx[2]/2  ;
+                    Eyh_tmp(i,j,0) =  (Eyh(i,j-1,0) + Eyh(i,j+1,0))/2 + c*(Bxh(i,j+1,0) - Bxh(i,j-1,0))/2 + (gamma_y_m + gamma_y_p)*dx[2]/2  ;
                 
                     amrex::ignore_unused(k);
 
@@ -907,12 +911,12 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_z = - (jz(i,j,k)+jzo(i,j,k))/2 + (By(i+1,j,k)-By(i,j,k))/dx[0] - (Bx(i,j+1,k)-Bx(i,j,k))/dx[1] ;
+                    amrex::Real gamma_z = - c*mu0*(jz(i,j,k)+jzo(i,j,k))/2 + c*(By(i+1,j,k)-By(i,j,k))/dx[0] - c*(Bx(i,j+1,k)-Bx(i,j,k))/dx[1] ;
                     Ezh_tmp(i,j,k) = Ezh(i,j,k) + dx[2]*gamma_z ;
 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_z = - (jz(i,j,0)+jzo(i,j,0))/2 + (By(i+1,j,0)-By(i,j,0))/dx[0] ;
+                    amrex::Real gamma_z = - c*mu0*(jz(i,j,0)+jzo(i,j,0))/2 + c*(By(i+1,j,0)-By(i,j,0))/dx[0] ;
                     Ezh_tmp(i,j,0) = Ezh(i,j,0) + dx[2]*gamma_z ;
                     amrex::ignore_unused(k);
 
@@ -928,20 +932,20 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_y_p = -(jy(i  ,j+1,k  )+jyo(i  ,j+1,k  )+jy(i  ,j+1,k+1)+jyo(i  ,j+1,k+1))/4 - (Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i  ,j+1,k  )-Bz(i  ,j+1,k+1))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -(jy(i  ,j+1,k-1)+jyo(i  ,j+1,k-1)+jy(i  ,j+1,k  )+jyo(i  ,j+1,k  ))/4 - (Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i  ,j+1,k-1)-Bz(i  ,j+1,k  ))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jyo(i  ,j+1,k  )+jy(i  ,j+1,k+1)+jyo(i  ,j+1,k+1))/4 - c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i  ,j+1,k  )-Bz(i  ,j+1,k+1))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jyo(i  ,j+1,k-1)+jy(i  ,j+1,k  )+jyo(i  ,j+1,k  ))/4 - c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i  ,j+1,k-1)-Bz(i  ,j+1,k  ))/(2*dx[0]) ;
 
                     amrex::Real phi_x_p = -(Ez(i  ,j+1,k  )+Ez(i  ,j+1,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[1]) ;
                     amrex::Real phi_x_m = -(Ez(i  ,j+1,k-1)+Ez(i  ,j+1,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[1]) ;
 
-                    Bxh_tmp(i, j, k) = (Bxh(i,j,k-1) + Bxh(i,j,k+1))/2 + (Eyh(i,j,k+1) - Eyh(i,j,k-1))/2 +  (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2 ;
+                    Bxh_tmp(i, j, k) = c*(Bxh(i,j,k-1) + Bxh(i,j,k+1))/2 + (Eyh(i,j,k+1) - Eyh(i,j,k-1))/2 +  (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2 ;
                 
  #elif defined WARPX_DIM_XZ
                     
-                    amrex::Real gamma_y_p = -(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - (Bz(i+1,j  ,0)+Bz(i+1,j+1,0)-Bz(i  ,j  ,0)-Bz(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - (Bz(i+1,j-1,0)+Bz(i+1,j  ,0)-Bz(i  ,j-1,0)-Bz(i  ,j  ,0))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - c*(Bz(i+1,j  ,0)+Bz(i+1,j+1,0)-Bz(i  ,j  ,0)-Bz(i  ,j+1,0))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bz(i+1,j-1,0)+Bz(i+1,j  ,0)-Bz(i  ,j-1,0)-Bz(i  ,j  ,0))/(2*dx[0]) ;
 
-                    Bxh_tmp(i,j,0) = (Bxh(i,j-1,0) + Bxh(i,j+1,0))/2 + (Eyh(i,j+1) - Eyh(i,j-1,0))/2 + (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
+                    Bxh_tmp(i,j,0) = c*(Bxh(i,j-1,0) + Bxh(i,j+1,0))/2 + (Eyh(i,j+1) - Eyh(i,j-1,0))/2 + (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
@@ -952,23 +956,23 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_x_p = -(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + (Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real gamma_x_m = -(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + (Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
 
                     amrex::Real phi_y_p = (Ez(i+1,j  ,k  )+Ez(i+1,j  ,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ez(i+1,j  ,k-1)+Ez(i+1,j  ,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[0]) ;
 
-                    Byh_tmp(i, j, k) = (Byh(i,j,k-1) + Byh(i,j,k+1))/2 - (Exh(i,j,k+1) - Exh(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
+                    Byh_tmp(i, j, k) = c*(Byh(i,j,k-1) + Byh(i,j,k+1))/2 - (Exh(i,j,k+1) - Exh(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
                 
 #elif defined WARPX_DIM_XZ
                     
-                    amrex::Real gamma_x_p = -(jx(i+1,j+1,0)+jxo(i+1,j+1,0)+jx(i+1,j  ,0)+jxo(i+1,j  ,0))/4 ;
-                    amrex::Real gamma_x_m = -(jx(i+1,j  ,0)+jxo(i+1,j  ,0)+jx(i+1,j-1,0)+jxo(i+1,j-1,0))/4 ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j+1,0)+jxo(i+1,j+1,0)+jx(i+1,j  ,0)+jxo(i+1,j  ,0))/4 ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,0)+jxo(i+1,j  ,0)+jx(i+1,j-1,0)+jxo(i+1,j-1,0))/4 ;
 
                     amrex::Real phi_y_p = (Ez(i+1,j  ,0)+Ez(i+1,j+1,0)-Ez(i  ,j  ,0)-Ez(i  ,j+1,0))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ez(i+1,j-1,0)+Ez(i+1,j  ,0)-Ez(i  ,j-1,0)-Ez(i  ,j  ,0))/(2*dx[0]) ;
 
-                    Byh_tmp(i,j,0) = (Byh(i,j-1,0) + Byh(i,j+1,0))/2 - (Exh(i,j+1,0) - Exh(i,j-1,0))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
+                    Byh_tmp(i,j,0) = c*(Byh(i,j-1,0) + Byh(i,j+1,0))/2 - (Exh(i,j+1,0) - Exh(i,j-1,0))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
@@ -980,12 +984,12 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 #if defined WARPX_DIM_3D
 
                     amrex::Real phi_z = (Ex(i+1,j+1,k) - Ex(i+1,j,k))/dx[1] - (Ey(i+1,j+1,k) - Ey(i,j+1,k))/dx[0] ;
-                    Bzh_tmp(i, j, k) = Bzh(i,j,k) + dx[2]*phi_z ;
+                    Bzh_tmp(i, j, k) = c*Bzh(i,j,k) + dx[2]*phi_z ;
                 
 #elif defined WARPX_DIM_XZ
                     
                     amrex::Real phi_z = - (Ey(i+1,j,0) - Ey(i,j,0))/dx[0] ;
-                    Bzh_tmp(i, j, 0) = Bzh(i,j,0) + dx[2]*phi_z ;
+                    Bzh_tmp(i, j, 0) = c*Bzh(i,j,0) + dx[2]*phi_z ;
                     amrex::ignore_unused(k);
 
 #endif
@@ -1037,20 +1041,20 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    Bxh(i,j,k) = Bxh_tmp(i,j,k);
+                    Bxh(i,j,k) = Bxh_tmp(i,j,k)/c;
 
 #elif defined WARPX_DIM_XZ
-                    Bxh(i,j,0) = Bxh_tmp(i,j,0);
+                    Bxh(i,j,0) = Bxh_tmp(i,j,0)/c;
                     amrex::ignore_unused(k);
 #endif
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    Byh(i,j,k) = Byh_tmp(i,j,k);
+                    Byh(i,j,k) = Byh_tmp(i,j,k)/c;
 
 #elif defined WARPX_DIM_XZ
-                    Byh(i,j,0) = Byh_tmp(i,j,0);
+                    Byh(i,j,0) = Byh_tmp(i,j,0)/c;
                     amrex::ignore_unused(k);
 
 #endif
@@ -1058,10 +1062,10 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    Bzh(i,j,k) = Bzh_tmp(i,j,k);
+                    Bzh(i,j,k) = Bzh_tmp(i,j,k)/c;
 
 #elif defined WARPX_DIM_XZ
-                    Bzh(i,j,0) = Bzh_tmp(i,j,0);
+                    Bzh(i,j,0) = Bzh_tmp(i,j,0)/c;
                     amrex::ignore_unused(k);
 
 #endif
@@ -1095,7 +1099,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
         std::cout << "Before Loop MFI for full time step" << std::endl ;
 
-        for ( MFIter mfi(*Efield[0], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        for ( MFIter mfi(*Efield[0], false); mfi.isValid(); ++mfi )  {
 
             std::cout << "Loop MFI for full time step" << std::endl ;
 
@@ -1164,23 +1168,23 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
  #if defined WARPX_DIM_3D
                   
-                    amrex::Real gamma_x_p = -(jx(i+1,j  ,k+1)+jx(i+1,j  ,k  ))/2 + (Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i+1,j  ,k  )-Bzh(i+1,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real gamma_x_m = -(jx(i+1,j  ,k  )+jx(i+1,j  ,k-1))/2 + (Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i+1,j  ,k-1)-Bzh(i+1,j  ,k  ))/(2*dx[1]) ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jx(i+1,j  ,k  ))/2 + c*(Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i+1,j  ,k  )-Bzh(i+1,j  ,k+1))/(2*dx[1]) ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jx(i+1,j  ,k-1))/2 + c*(Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i+1,j  ,k-1)-Bzh(i+1,j  ,k  ))/(2*dx[1]) ;
 
                     amrex::Real phi_y_p = (Ezh(i+1,j  ,k  )+Ezh(i+1,j  ,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ezh(i+1,j  ,k-1)+Ezh(i+1,j  ,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[0]) ;
 
-                    Ex_tmp(i,j,k) = (Ex(i,j,k-1) + Ex(i,j,k+1))/2 - (By(i,j,k+1) - By(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
+                    Ex_tmp(i,j,k) = (Ex(i,j,k-1) + Ex(i,j,k+1))/2 - c*(By(i,j,k+1) - By(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_x_p = -(jx(i+1,j+1,0)+jx(i+1,j  ,0))/2 ;
-                    amrex::Real gamma_x_m = -(jx(i+1,j  ,0)+jx(i+1,j-1,0))/2 ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j+1,0)+jx(i+1,j  ,0))/2 ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,0)+jx(i+1,j-1,0))/2 ;
 
                     amrex::Real phi_y_p = (Ezh(i+1,j  ,0)+Ezh(i+1,j+1,0)-Ezh(i  ,j  ,0)-Ezh(i  ,j+1,0))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ezh(i+1,j-1,0)+Ezh(i+1,j  ,0)-Ezh(i  ,j-1,0)-Ezh(i  ,j  ,0))/(2*dx[0]) ;
 
-                    Ex_tmp(i,j,0) = (Ex(i,j-1,0) + Ex(i,j+1,0))/2 - (By(i,j+1,0) - By(i,j-1,0))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
+                    Ex_tmp(i,j,0) = (Ex(i,j-1,0) + Ex(i,j+1,0))/2 - c*(By(i,j+1,0) - By(i,j-1,0))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
@@ -1192,20 +1196,20 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_y_p = -(jy(i  ,j+1,k  )+jy(i  ,j+1,k+1))/2 - (Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i  ,j+1,k  )-Bzh(i  ,j+1,k+1))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -(jy(i  ,j+1,k-1)+jy(i  ,j+1,k  ))/2 - (Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i  ,j+1,k-1)-Bzh(i  ,j+1,k  ))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jy(i  ,j+1,k+1))/2 - c*(Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i  ,j+1,k  )-Bzh(i  ,j+1,k+1))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jy(i  ,j+1,k  ))/2 - c*(Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i  ,j+1,k-1)-Bzh(i  ,j+1,k  ))/(2*dx[0]) ;
 
                     amrex::Real phi_x_p = -(Ezh(i  ,j+1,k  )+Ezh(i  ,j+1,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[1]) ;
                     amrex::Real phi_x_m = -(Ezh(i  ,j+1,k-1)+Ezh(i  ,j+1,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[1]) ;
 
-                    Ey_tmp(i,j,k) =  (Ey(i,j,k-1) + Ey(i,j,k+1))/2 + (Bx(i,j,k+1) - Bx(i,j,k-1))/2 + (gamma_y_m - phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2  ;
+                    Ey_tmp(i,j,k) =  (Ey(i,j,k-1) + Ey(i,j,k+1))/2 + c*(Bx(i,j,k+1) - Bx(i,j,k-1))/2 + (gamma_y_m - phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2  ;
                 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_y_p = -(jy(i  ,j  ,0)+jy(i  ,j+1,0))/2 - (Bzh(i+1,j  ,0)+Bzh(i+1,j+1,0)-Bzh(i  ,j  ,0)-Bzh(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -(jy(i  ,j-1,0)+jy(i  ,j  ,0))/2 - (Bzh(i+1,j-1,0)+Bzh(i+1,j  ,0)-Bzh(i  ,j-1,0)-Bzh(i  ,j  ,0))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jy(i  ,j+1,0))/2 - c*(Bzh(i+1,j  ,0)+Bzh(i+1,j+1,0)-Bzh(i  ,j  ,0)-Bzh(i  ,j+1,0))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jy(i  ,j  ,0))/2 - c*(Bzh(i+1,j-1,0)+Bzh(i+1,j  ,0)-Bzh(i  ,j-1,0)-Bzh(i  ,j  ,0))/(2*dx[0]) ;
 
-                    Ey_tmp(i,j,0) =  (Ey(i,j-1,0) + Ey(i,j+1,0))/2 + (Bx(i,j+1,0) - Bx(i,j-1,0))/2 + (gamma_y_m + gamma_y_p)*dx[2]/2  ;
+                    Ey_tmp(i,j,0) =  (Ey(i,j-1,0) + Ey(i,j+1,0))/2 + c*(Bx(i,j+1,0) - Bx(i,j-1,0))/2 + (gamma_y_m + gamma_y_p)*dx[2]/2  ;
 
                     amrex::ignore_unused(k);
 
@@ -1216,12 +1220,12 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_z = - jz(i,j,k) + (Byh(i+1,j  ,k  )-Byh(i  ,j  ,k  ))/dx[0] - (Bxh(i  ,j+1,k  )-Bxh(i  ,j  ,k  ))/dx[1] ;
+                    amrex::Real gamma_z = - c*mu0*jz(i,j,k) + c*(Byh(i+1,j  ,k  )-Byh(i  ,j  ,k  ))/dx[0] - c*(Bxh(i  ,j+1,k  )-Bxh(i  ,j  ,k  ))/dx[1] ;
                     Ez_tmp(i,j,k) = Ez(i,j,k) + dx[2]*gamma_z ;
 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_z = - jz(i,j,0) + (Byh(i+1,j,0)-Byh(i,j,0))/dx[0] ;
+                    amrex::Real gamma_z = - c*mu0*jz(i,j,0) + c*(Byh(i+1,j,0)-Byh(i,j,0))/dx[0] ;
                     Ez_tmp(i,j,0) = Ez(i,j,0) + dx[2]*gamma_z ;
 
                     amrex::ignore_unused(k);
@@ -1238,20 +1242,20 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_y_p = -(jy(i  ,j+1,k  )+jy(i  ,j+1,k+1))/2 - (Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i  ,j+1,k  )-Bzh(i  ,j+1,k+1))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -(jy(i  ,j+1,k-1)+jy(i  ,j+1,k  ))/2 - (Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i  ,j+1,k-1)-Bzh(i  ,j+1,k  ))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jy(i  ,j+1,k+1))/2 - c*(Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i  ,j+1,k  )-Bzh(i  ,j+1,k+1))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jy(i  ,j+1,k  ))/2 - c*(Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i  ,j+1,k-1)-Bzh(i  ,j+1,k  ))/(2*dx[0]) ;
 
                     amrex::Real phi_x_p = -(Ezh(i  ,j+1,k  )+Ezh(i  ,j+1,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[1]) ;
                     amrex::Real phi_x_m = -(Ezh(i  ,j+1,k-1)+Ezh(i  ,j+1,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[1]) ;
 
-                    Bx_tmp(i, j, k) = (Bx(i,j,k-1) + Bx(i,j,k+1))/2 + (Ey(i,j,k+1) - Ey(i,j,k-1))/2 +  (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2 ;
+                    Bx_tmp(i, j, k) = c*(Bx(i,j,k-1) + Bx(i,j,k+1))/2 + (Ey(i,j,k+1) - Ey(i,j,k-1))/2 +  (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2 ;
                 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_y_p = -(jy(i  ,j  ,0)+jy(i  ,j+1,0))/2 - (Bzh(i+1,j  ,0)+Bzh(i+1,j+1,0)-Bzh(i  ,j  ,0)-Bzh(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -(jy(i  ,j-1,0)+jy(i  ,j  ,0))/2 - (Bzh(i+1,j-1,0)+Bzh(i+1,j  ,0)-Bzh(i  ,j-1,0)-Bzh(i  ,j  ,0))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jy(i  ,j+1,0))/2 - c*(Bzh(i+1,j  ,0)+Bzh(i+1,j+1,0)-Bzh(i  ,j  ,0)-Bzh(i  ,j+1,0))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jy(i  ,j  ,0))/2 - c*(Bzh(i+1,j-1,0)+Bzh(i+1,j  ,0)-Bzh(i  ,j-1,0)-Bzh(i  ,j  ,0))/(2*dx[0]) ;
                 
-                    Bx_tmp(i,j,0) = (Bx(i,j-1,0) + Bx(i,j+1,0))/2 + (Ey(i,j+1,0) - Ey(i,j-1,0))/2 +  (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
+                    Bx_tmp(i,j,0) = c*(Bx(i,j-1,0) + Bx(i,j+1,0))/2 + (Ey(i,j+1,0) - Ey(i,j-1,0))/2 +  (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
@@ -1262,23 +1266,23 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_x_p = -(jx(i+1,j  ,k+1)+jx(i+1,j  ,k  ))/2 + (Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i+1,j  ,k  )-Bzh(i+1,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real gamma_x_m = -(jx(i+1,j  ,k  )+jx(i+1,j  ,k-1))/2 + (Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i+1,j  ,k-1)-Bzh(i+1,j  ,k  ))/(2*dx[1]) ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jx(i+1,j  ,k  ))/2 + c*(Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i+1,j  ,k  )-Bzh(i+1,j  ,k+1))/(2*dx[1]) ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jx(i+1,j  ,k-1))/2 + c*(Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i+1,j  ,k-1)-Bzh(i+1,j  ,k  ))/(2*dx[1]) ;
 
                     amrex::Real phi_y_p = (Ezh(i+1,j  ,k  )+Ezh(i+1,j  ,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ezh(i+1,j  ,k-1)+Ezh(i+1,j  ,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[0]) ;
 
-                    By_tmp(i, j, k) = (By(i,j,k-1) + By(i,j,k+1))/2 - (Ex(i,j,k+1) - Ex(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
+                    By_tmp(i, j, k) = c*(By(i,j,k-1) + By(i,j,k+1))/2 - (Ex(i,j,k+1) - Ex(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
                 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_x_p = -(jx(i+1,j+1,0)+jx(i+1,j  ,0))/2 ;
-                    amrex::Real gamma_x_m = -(jx(i+1,j  ,0)+jx(i+1,j-1,0))/2 ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j+1,0)+jx(i+1,j  ,0))/2 ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,0)+jx(i+1,j-1,0))/2 ;
 
                     amrex::Real phi_y_p = (Ezh(i+1,j  ,0)+Ezh(i+1,j+1,0)-Ezh(i  ,j  ,0)-Ezh(i  ,j+1,0))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ezh(i+1,j-1,0)+Ezh(i+1,j  ,0)-Ezh(i  ,j-1,0)-Ezh(i  ,j  ,0))/(2*dx[0]) ;
 
-                    By_tmp(i,j,0) = (By(i,j-1,0) + By(i,j+1,0))/2 - (Ex(i,j+1,0) - Ex(i,j-1,0))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
+                    By_tmp(i,j,0) = c*(By(i,j-1,0) + By(i,j+1,0))/2 - (Ex(i,j+1,0) - Ex(i,j-1,0))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
@@ -1290,12 +1294,12 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 #if defined WARPX_DIM_3D
 
                     amrex::Real phi_z = (Exh(i+1,j+1,k) - Exh(i+1,j,k))/dx[1] - (Eyh(i+1,j+1,k) - Eyh(i,j+1,k))/dx[0] ;
-                    Bz_tmp(i, j, k) = Bz(i,j,k) + dx[2]*phi_z ;
+                    Bz_tmp(i, j, k) = c*Bz(i,j,k) + dx[2]*phi_z ;
 
 #elif defined WARPX_DIM_XZ
 
                     amrex::Real phi_z = - (Eyh(i+1,j,0) - Eyh(i,j,0))/dx[0] ;
-                    Bz_tmp(i,j,0) = Bz(i,j,0) + dx[2]*phi_z ;
+                    Bz_tmp(i,j,0) = c*Bz(i,j,0) + dx[2]*phi_z ;
 
                     amrex::ignore_unused(k);
 
@@ -1349,10 +1353,10 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    Bx(i,j,k) = Bx_tmp(i,j,k);
+                    Bx(i,j,k) = Bx_tmp(i,j,k)/c;
 
 #elif defined WARPX_DIM_XZ
-                    Bx(i,j,0) = Bx_tmp(i,j,0);
+                    Bx(i,j,0) = Bx_tmp(i,j,0)/c;
                     amrex::ignore_unused(k);
 
 #endif
@@ -1360,10 +1364,10 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    By(i,j,k) = By_tmp(i,j,k);
+                    By(i,j,k) = By_tmp(i,j,k)/c;
 
 #elif defined WARPX_DIM_XZ
-                    By(i,j,0) = By_tmp(i,j,0);
+                    By(i,j,0) = By_tmp(i,j,0)/c;
                     amrex::ignore_unused(k);
 
 #endif
@@ -1371,10 +1375,10 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    Bz(i,j,k) = Bz_tmp(i,j,k);
+                    Bz(i,j,k) = Bz_tmp(i,j,k)/c;
 
 #elif defined WARPX_DIM_XZ
-                    Bz(i,j,0) = Bz_tmp(i,j,0);
+                    Bz(i,j,0) = Bz_tmp(i,j,0)/c;
                     amrex::ignore_unused(k);
 
 #endif
