@@ -945,7 +945,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - c*(Bz(i+1,j  ,0)+Bz(i+1,j+1,0)-Bz(i  ,j  ,0)-Bz(i  ,j+1,0))/(2*dx[0]) ;
                     amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bz(i+1,j-1,0)+Bz(i+1,j  ,0)-Bz(i  ,j-1,0)-Bz(i  ,j  ,0))/(2*dx[0]) ;
 
-                    Bxh_tmp(i,j,0) = c*(Bxh(i,j-1,0) + Bxh(i,j+1,0))/2 + (Eyh(i,j+1) - Eyh(i,j-1,0))/2 + (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
+                    Bxh_tmp(i,j,0) = c*(Bxh(i,j-1,0) + Bxh(i,j+1,0))/2 + (Eyh(i,j+1,0) - Eyh(i,j-1,0))/2 + (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
