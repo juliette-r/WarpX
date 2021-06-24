@@ -1072,6 +1072,44 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 }
                 );    
 
+            // Update the old current fields J at time n+1/2
+            amrex::ParallelFor(
+                tex, tey, tez,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+
+#if defined WARPX_DIM_3D
+                    jxo(i,j,k) = jx(i,j,k) ;
+
+#elif defined WARPX_DIM_XZ
+                    jxo(i,j,0) = jx(i,j,0) ;
+                    amrex::ignore_unused(k);
+#endif
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+
+#if defined WARPX_DIM_3D
+                    jyo(i,j,k) = jy(i,j,k) ;
+
+#elif defined WARPX_DIM_XZ
+                    jyo(i,j,0) = jy(i,j,0) ;
+                    amrex::ignore_unused(k);
+
+#endif
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k){
+
+#if defined WARPX_DIM_3D
+                    jzo(i,j,k) = jz(i,j,k) ;
+
+#elif defined WARPX_DIM_XZ
+                    jzo(i,j,0) = jz(i,j,0) ;
+                    amrex::ignore_unused(k);
+
+#endif
+                }
+                );    
+
+
         }
         std::cout << "After Loop MFI for half time step" << std::endl ;
 
