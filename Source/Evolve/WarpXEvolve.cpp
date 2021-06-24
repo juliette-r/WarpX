@@ -408,7 +408,15 @@ WarpX::OneStep_nosub (Real cur_time)
         // to store the value from the previous time step, so you can do the averaging.
         // You will need to fill it with the old value when needed, and take care of the averaging.
         amrex::Print()<<"RIP scheme\n";
+        EvolveRIP(dt[0], true);
         EvolveRIP(dt[0], false);
+        // store current in the old array
+        for (int lev = 0; lev <= max_level; lev++) {
+            for (int dir=0; dir<3; dir++){
+                amrex::MultiFab::Copy(*current_fp_old[lev][dir], *current_fp[lev][dir],
+                                      0, 0, 1, current_fp[lev][dir]->nGrowVect());
+            }
+        }
     } else {
         amrex::Abort("Umknown Maxwell Solver");
     }

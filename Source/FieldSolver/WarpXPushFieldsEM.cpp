@@ -756,19 +756,26 @@ WarpX::ApplyInverseVolumeScalingToChargeDensity (MultiFab* Rho, int lev)
 void
 WarpX::EvolveRIP (amrex::Real dt, bool half)
 {
+    // if half=true , E and B are pushed by one time step, from n-1/2 to n+1/2
+    // if half=false, E and B are pushed by one time step, from n     to n+1
 
-    Real constexpr c = PhysConst::c ; 
-    Real constexpr mu0 = PhysConst::mu0 ; 
+    Real constexpr c = PhysConst::c;
+    Real constexpr mu0 = PhysConst::mu0;
 
     // Loop over mesh-refinement levels
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         // Get the field data structures
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efield = Efield_fp[lev];
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfield = Bfield_fp[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efield =
+            half ? Efield_fp_half[lev] : Efield_fp[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfield =
+            half ? Bfield_fp_half[lev] : Bfield_fp[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfield = current_fp[lev];
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efieldh = Efield_fp_half[lev];
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfieldh = Bfield_fp_half[lev];
+
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efield_mid =
+            half ? Efield_fp[lev] : Efield_fp_half[lev];
+        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfield_mid =
+            half ? Bfield_fp[lev] : Bfield_fp_half[lev];
         std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfieldo = current_fp_old[lev];
 
         // Get parameters of cells
@@ -783,350 +790,43 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         // Loop over boxes on this rank
-        std::cout << "Before Loop MFI for half time step" << std::endl ;
+        std::cout << "Before Loop MFI" << std::endl ;
 
-        for ( MFIter mfi(*Efieldh[0], false); mfi.isValid(); ++mfi )  {
+        for ( MFIter mfi(*Efield[0], false); mfi.isValid(); ++mfi )  {
 
-            std::cout << "Loop MFI for half time step" << std::endl ;
+            std::cout << "Loop MFI" << std::endl ;
 
             // Extract field data for this grid/tile
 
-            // E and B at time step n-1/2
-            Array4<Real> const& Exh = Efieldh[0]->array(mfi);
-            Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
-            Array4<Real> const& Ezh = Efieldh[2]->array(mfi);
+            // E and B that we are evolving by 1 time step
+            // if half: E and B are given at n-1/2
+            // if not : E and B are given at n
+            Array4<Real> const& Ex = Efield[0]->array(mfi);
+            Array4<Real> const& Ey = Efield[1]->array(mfi);
+            Array4<Real> const& Ez = Efield[2]->array(mfi);
 
-            Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
-            Array4<Real> const& Byh = Bfieldh[1]->array(mfi);
-            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
+            Array4<Real> const& Bx = Bfield[0]->array(mfi);
+            Array4<Real> const& By = Bfield[1]->array(mfi);
+            Array4<Real> const& Bz = Bfield[2]->array(mfi);
 
-            // Current at time step n+1/2
             Array4<Real> const& jx = Jfield[0]->array(mfi);
             Array4<Real> const& jy = Jfield[1]->array(mfi);
             Array4<Real> const& jz = Jfield[2]->array(mfi);
 
-            // Current at time step n-1/2
             Array4<Real> const& jxo = Jfieldo[0]->array(mfi);
             Array4<Real> const& jyo = Jfieldo[1]->array(mfi);
             Array4<Real> const& jzo = Jfieldo[2]->array(mfi);
 
-            // Get RIP-specific fields : E and B at time step n
-            Array4<Real> const& Ex = Efield[0]->array(mfi);
-            Array4<Real> const& Ey = Efield[1]->array(mfi);
-            Array4<Real> const& Ez = Efield[2]->array(mfi);
-
-            Array4<Real> const& Bx = Bfield[0]->array(mfi);
-            Array4<Real> const& By = Bfield[1]->array(mfi);
-            Array4<Real> const& Bz = Bfield[2]->array(mfi);
-
-            // Extract tileboxes for which to loop
-            Box const& tex  = mfi.tilebox(Efieldh[0]->ixType().toIntVect());
-            Box const& tey  = mfi.tilebox(Efieldh[1]->ixType().toIntVect());
-            Box const& tez  = mfi.tilebox(Efieldh[2]->ixType().toIntVect());
-
-            Box const& tbx  = mfi.tilebox(Bfieldh[0]->ixType().toIntVect());
-            Box const& tby  = mfi.tilebox(Bfieldh[1]->ixType().toIntVect());
-            Box const& tbz  = mfi.tilebox(Bfieldh[2]->ixType().toIntVect());
-
-            // Temporary fields to update E and B at time step n+1/2 using E and B at time step n-1/2
-            FArrayBox fab_Exh_tmp(tex, 1);
-            FArrayBox fab_Eyh_tmp(tey, 1);
-            FArrayBox fab_Ezh_tmp(tez, 1);
-            fab_Exh_tmp.setVal(0.);
-            fab_Eyh_tmp.setVal(0.);
-            fab_Ezh_tmp.setVal(0.);
-            Array4<Real> const& Exh_tmp = fab_Exh_tmp.array();
-            Array4<Real> const& Eyh_tmp = fab_Eyh_tmp.array();
-            Array4<Real> const& Ezh_tmp = fab_Ezh_tmp.array();
-
-            FArrayBox fab_Bxh_tmp(tbx, 1);
-            FArrayBox fab_Byh_tmp(tby, 1);
-            FArrayBox fab_Bzh_tmp(tbz, 1);
-            fab_Bxh_tmp.setVal(0.);
-            fab_Byh_tmp.setVal(0.);
-            fab_Bzh_tmp.setVal(0.);
-            Array4<Real> const& Bxh_tmp = fab_Bxh_tmp.array();
-            Array4<Real> const& Byh_tmp = fab_Byh_tmp.array();
-            Array4<Real> const& Bzh_tmp = fab_Bzh_tmp.array();
-
-            // Loops over the cells and update the fields  
-             
-            // Field E at time step n+1/2, depending on fields E and B at time steps n and n-1/2 :
-            amrex::ParallelFor(
-                tex, tey, tez,
-
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-                  
-#if defined WARPX_DIM_3D
-
-                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
-
-                    amrex::Real phi_y_p = (Ez(i+1,j  ,k  )+Ez(i+1,j  ,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[0]) ;
-                    amrex::Real phi_y_m = (Ez(i+1,j  ,k-1)+Ez(i+1,j  ,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[0]) ;
-
-                    Exh_tmp(i,j,k) = (Exh(i,j,k-1) + Exh(i,j,k+1))/2 - c*(Byh(i,j,k+1) - Byh(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
-
-#elif defined WARPX_DIM_XZ
-                    
-                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j+1,0)+jxo(i+1,j+1,0)+jx(i+1,j  ,0)+jxo(i+1,j  ,0))/4 ;
-                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,0)+jxo(i+1,j  ,0)+jx(i+1,j-1,0)+jxo(i+1,j-1,0))/4 ;
-
-                    amrex::Real phi_y_p = (Ez(i+1,j  ,0)+Ez(i+1,j+1,0)-Ez(i  ,j  ,0)-Ez(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real phi_y_m = (Ez(i+1,j-1,0)+Ez(i+1,j  ,0)-Ez(i  ,j-1,0)-Ez(i  ,j  ,0))/(2*dx[0]) ;
-
-                    Exh_tmp(i,j,0) = (Exh(i,j-1,0) + Exh(i,j+1,0))/2 - c*(Byh(i,j+1,0) - Byh(i,j-1,0))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
-
-                    amrex::ignore_unused(k);
-
-#endif
-
-                                     
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-
-                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jyo(i  ,j+1,k  )+jy(i  ,j+1,k+1)+jyo(i  ,j+1,k+1))/4 - c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i  ,j+1,k  )-Bz(i  ,j+1,k+1))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jyo(i  ,j+1,k-1)+jy(i  ,j+1,k  )+jyo(i  ,j+1,k  ))/4 - c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i  ,j+1,k-1)-Bz(i  ,j+1,k  ))/(2*dx[0]) ;
-
-                    amrex::Real phi_x_p = -(Ez(i  ,j+1,k  )+Ez(i  ,j+1,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real phi_x_m = -(Ez(i  ,j+1,k-1)+Ez(i  ,j+1,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[1]) ;
-
-                    Eyh_tmp(i,j,k) =  (Eyh(i,j,k-1) + Eyh(i,j,k+1))/2 + c*(Bxh(i,j,k+1) - Bxh(i,j,k-1))/2 + (gamma_y_m - phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2  ;
-                
-#elif defined WARPX_DIM_XZ
-                    
-                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - c*(Bz(i+1,j  ,0)+Bz(i+1,j+1,0)-Bz(i  ,j  ,0)-Bz(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bz(i+1,j-1,0)+Bz(i+1,j  ,0)-Bz(i  ,j-1,0)-Bz(i  ,j  ,0))/(2*dx[0]) ;
-
-                    Eyh_tmp(i,j,0) =  (Eyh(i,j-1,0) + Eyh(i,j+1,0))/2 + c*(Bxh(i,j+1,0) - Bxh(i,j-1,0))/2 + (gamma_y_m + gamma_y_p)*dx[2]/2  ;
-                
-                    amrex::ignore_unused(k);
-
-#endif
-                
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-
-                    amrex::Real gamma_z = - c*mu0*(jz(i,j,k)+jzo(i,j,k))/2 + c*(By(i+1,j,k)-By(i,j,k))/dx[0] - c*(Bx(i,j+1,k)-Bx(i,j,k))/dx[1] ;
-                    Ezh_tmp(i,j,k) = Ezh(i,j,k) + dx[2]*gamma_z ;
-
-#elif defined WARPX_DIM_XZ
-
-                    amrex::Real gamma_z = - c*mu0*(jz(i,j,0)+jzo(i,j,0))/2 + c*(By(i+1,j,0)-By(i,j,0))/dx[0] ;
-                    Ezh_tmp(i,j,0) = Ezh(i,j,0) + dx[2]*gamma_z ;
-                    amrex::ignore_unused(k);
-
-#endif
-                }
-                );
-            
-            // Field B at time step n+1/2, depending on fields E and B at time steps n and n-1/2 :
-            amrex::ParallelFor(
-                tbx, tby, tbz,
-
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-
-                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jyo(i  ,j+1,k  )+jy(i  ,j+1,k+1)+jyo(i  ,j+1,k+1))/4 - c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i  ,j+1,k  )-Bz(i  ,j+1,k+1))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jyo(i  ,j+1,k-1)+jy(i  ,j+1,k  )+jyo(i  ,j+1,k  ))/4 - c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i  ,j+1,k-1)-Bz(i  ,j+1,k  ))/(2*dx[0]) ;
-
-                    amrex::Real phi_x_p = -(Ez(i  ,j+1,k  )+Ez(i  ,j+1,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real phi_x_m = -(Ez(i  ,j+1,k-1)+Ez(i  ,j+1,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[1]) ;
-
-                    Bxh_tmp(i, j, k) = c*(Bxh(i,j,k-1) + Bxh(i,j,k+1))/2 + (Eyh(i,j,k+1) - Eyh(i,j,k-1))/2 +  (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2 ;
-                
- #elif defined WARPX_DIM_XZ
-                    
-                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - c*(Bz(i+1,j  ,0)+Bz(i+1,j+1,0)-Bz(i  ,j  ,0)-Bz(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bz(i+1,j-1,0)+Bz(i+1,j  ,0)-Bz(i  ,j-1,0)-Bz(i  ,j  ,0))/(2*dx[0]) ;
-
-                    Bxh_tmp(i,j,0) = c*(Bxh(i,j-1,0) + Bxh(i,j+1,0))/2 + (Eyh(i,j+1,0) - Eyh(i,j-1,0))/2 + (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
-
-                    amrex::ignore_unused(k);
-
-#endif          
-                
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-
-                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
-
-                    amrex::Real phi_y_p = (Ez(i+1,j  ,k  )+Ez(i+1,j  ,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[0]) ;
-                    amrex::Real phi_y_m = (Ez(i+1,j  ,k-1)+Ez(i+1,j  ,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[0]) ;
-
-                    Byh_tmp(i, j, k) = c*(Byh(i,j,k-1) + Byh(i,j,k+1))/2 - (Exh(i,j,k+1) - Exh(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
-                
-#elif defined WARPX_DIM_XZ
-                    
-                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j+1,0)+jxo(i+1,j+1,0)+jx(i+1,j  ,0)+jxo(i+1,j  ,0))/4 ;
-                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,0)+jxo(i+1,j  ,0)+jx(i+1,j-1,0)+jxo(i+1,j-1,0))/4 ;
-
-                    amrex::Real phi_y_p = (Ez(i+1,j  ,0)+Ez(i+1,j+1,0)-Ez(i  ,j  ,0)-Ez(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real phi_y_m = (Ez(i+1,j-1,0)+Ez(i+1,j  ,0)-Ez(i  ,j-1,0)-Ez(i  ,j  ,0))/(2*dx[0]) ;
-
-                    Byh_tmp(i,j,0) = c*(Byh(i,j-1,0) + Byh(i,j+1,0))/2 - (Exh(i,j+1,0) - Exh(i,j-1,0))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
-
-                    amrex::ignore_unused(k);
-
-#endif
-                
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-
-                    amrex::Real phi_z = (Ex(i+1,j+1,k) - Ex(i+1,j,k))/dx[1] - (Ey(i+1,j+1,k) - Ey(i,j+1,k))/dx[0] ;
-                    Bzh_tmp(i, j, k) = c*Bzh(i,j,k) + dx[2]*phi_z ;
-                
-#elif defined WARPX_DIM_XZ
-                    
-                    amrex::Real phi_z = - (Ey(i+1,j,0) - Ey(i,j,0))/dx[0] ;
-                    Bzh_tmp(i, j, 0) = c*Bzh(i,j,0) + dx[2]*phi_z ;
-                    amrex::ignore_unused(k);
-
-#endif
-                
-                }
-                );
-
-            // Overwrite the values at time step n+1/2 kept in the temporary arrays on the regular arrays
-            // For E
-            amrex::ParallelFor(
-                tex, tey, tez,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Exh(i,j,k) = Exh_tmp(i,j,k);
-
-#elif defined WARPX_DIM_XZ
-                    Exh(i,j,0) = Exh_tmp(i,j,0);
-                    amrex::ignore_unused(k);
-
-#endif
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Eyh(i,j,k) = Eyh_tmp(i,j,k);
-
-#elif defined WARPX_DIM_XZ
-                    Eyh(i,j,0) = Eyh_tmp(i,j,0);
-                    amrex::ignore_unused(k);
-#endif
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Ezh(i,j,k) = Ezh_tmp(i,j,k);
-
-#elif defined WARPX_DIM_XZ
-                    Ezh(i,j,0) = Ezh_tmp(i,j,0);
-                    amrex::ignore_unused(k);
-
-#endif
-                }
-                );
-            
-            // For B 
-            amrex::ParallelFor(
-                tbx, tby, tbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Bxh(i,j,k) = Bxh_tmp(i,j,k)/c;
-
-#elif defined WARPX_DIM_XZ
-                    Bxh(i,j,0) = Bxh_tmp(i,j,0)/c;
-                    amrex::ignore_unused(k);
-#endif
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Byh(i,j,k) = Byh_tmp(i,j,k)/c;
-
-#elif defined WARPX_DIM_XZ
-                    Byh(i,j,0) = Byh_tmp(i,j,0)/c;
-                    amrex::ignore_unused(k);
-
-#endif
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Bzh(i,j,k) = Bzh_tmp(i,j,k)/c;
-
-#elif defined WARPX_DIM_XZ
-                    Bzh(i,j,0) = Bzh_tmp(i,j,0)/c;
-                    amrex::ignore_unused(k);
-
-#endif
-                }
-                );    
-
-        }
-        std::cout << "After Loop MFI for half time step" << std::endl ;
-
-
-    }
-
-   for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        // Get the field data structures
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efield = Efield_fp[lev];
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfield = Bfield_fp[lev];
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 > const& Jfield = current_fp[lev];
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Efieldh = Efield_fp_half[lev];
-        std::array< std::unique_ptr<amrex::MultiFab>, 3 >& Bfieldh = Bfield_fp_half[lev];
-
-        // Get the parameters of the cells
-        std::array<Real,3> dx = CellSize(lev);
-
-
-// Updating E and B at time step n+1        
-#ifdef AMREX_USE_OMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        // Loop over boxes on this rank
-
-        std::cout << "Before Loop MFI for full time step" << std::endl ;
-
-        for ( MFIter mfi(*Efield[0], false); mfi.isValid(); ++mfi )  {
-
-            std::cout << "Loop MFI for full time step" << std::endl ;
-
-            // Extract field data for this grid/tile
-
-            // E and B at time step n 
-            Array4<Real> const& Ex = Efield[0]->array(mfi);
-            Array4<Real> const& Ey = Efield[1]->array(mfi);
-            Array4<Real> const& Ez = Efield[2]->array(mfi);
-    
-            Array4<Real> const& Bx = Bfield[0]->array(mfi);
-            Array4<Real> const& By = Bfield[1]->array(mfi);
-            Array4<Real> const& Bz = Bfield[2]->array(mfi);
-
-            // Current at time step n+1/2
-            Array4<Real> const& jx = Jfield[0]->array(mfi);
-            Array4<Real> const& jy = Jfield[1]->array(mfi);
-            Array4<Real> const& jz = Jfield[2]->array(mfi);
-
-            // Get RIP-specific fields : E and B at time step n+1/2
-            Array4<Real> const& Exh = Efieldh[0]->array(mfi);
-            Array4<Real> const& Eyh = Efieldh[1]->array(mfi);
-            Array4<Real> const& Ezh = Efieldh[2]->array(mfi);
-
-            Array4<Real> const& Bxh = Bfieldh[0]->array(mfi);
-            Array4<Real> const& Byh = Bfieldh[1]->array(mfi);
-            Array4<Real> const& Bzh = Bfieldh[2]->array(mfi);
+            // E and B in the middle of the current step
+            // if half: Em and Bm are given at n
+            // if not : Em and Bm are given at n+1/2
+            Array4<Real> const& Exm = Efield_mid[0]->array(mfi);
+            Array4<Real> const& Eym = Efield_mid[1]->array(mfi);
+            Array4<Real> const& Ezm = Efield_mid[2]->array(mfi);
+
+            Array4<Real> const& Bxm = Bfield_mid[0]->array(mfi);
+            Array4<Real> const& Bym = Bfield_mid[1]->array(mfi);
+            Array4<Real> const& Bzm = Bfield_mid[2]->array(mfi);
 
             // Extract tileboxes for which to loop
             Box const& tex  = mfi.tilebox(Efield[0]->ixType().toIntVect());
@@ -1137,7 +837,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
             Box const& tby  = mfi.tilebox(Bfield[1]->ixType().toIntVect());
             Box const& tbz  = mfi.tilebox(Bfield[2]->ixType().toIntVect());
 
-            // Temporary fields to update E and B at time step n+1 using E and B at time step n
+            // Temporary fields to update E and B by 1 time step, using the middle value
             FArrayBox fab_Ex_tmp(tex, 1);
             FArrayBox fab_Ey_tmp(tey, 1);
             FArrayBox fab_Ez_tmp(tez, 1);
@@ -1158,83 +858,94 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
             Array4<Real> const& By_tmp = fab_By_tmp.array();
             Array4<Real> const& Bz_tmp = fab_Bz_tmp.array();
 
-            // Loop over the cells and update the fields 
+            // Loops over the cells and update the fields
 
-            // Field E at time step n+1, depending on fields E and B at time steps n and n+1/2 :
+            // Push E by 1 time step, using the middle value as a source term
             amrex::ParallelFor(
                 tex, tey, tez,
 
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
- #if defined WARPX_DIM_3D
-                  
-                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jx(i+1,j  ,k  ))/2 + c*(Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i+1,j  ,k  )-Bzh(i+1,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jx(i+1,j  ,k-1))/2 + c*(Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i+1,j  ,k-1)-Bzh(i+1,j  ,k  ))/(2*dx[1]) ;
+#if defined WARPX_DIM_3D
 
-                    amrex::Real phi_y_p = (Ezh(i+1,j  ,k  )+Ezh(i+1,j  ,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[0]) ;
-                    amrex::Real phi_y_m = (Ezh(i+1,j  ,k-1)+Ezh(i+1,j  ,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[0]) ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
 
-                    Ex_tmp(i,j,k) = (Ex(i,j,k-1) + Ex(i,j,k+1))/2 - c*(By(i,j,k+1) - By(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
+                    amrex::Real phi_y_p = (Ez(i+1,j  ,k  )+Ez(i+1,j  ,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[0]) ;
+                    amrex::Real phi_y_m = (Ez(i+1,j  ,k-1)+Ez(i+1,j  ,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[0]) ;
+
+                    Exh_tmp(i,j,k) = (Exh(i,j,k-1) + Exh(i,j,k+1))/2 - c*(Byh(i,j,k+1) - Byh(i,j,k-1))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j+1,0)+jx(i+1,j  ,0))/2 ;
-                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,0)+jx(i+1,j-1,0))/2 ;
+                    const amrex::Real gamma_x_p = half
+                        ? -c*mu0*(jx(i+1,j+1,0) + jxo(i+1,j+1,0) + jx(i+1,j  ,0) + jxo(i+1,j  ,0))/4._rt
+                        : -c*mu0*(jx(i+1,j+1,0) +                  jx(i+1,j  ,0)                 )/2._rt;
+                    const amrex::Real gamma_x_m = half
+                        ? -c*mu0*(jx(i+1,j  ,0) + jxo(i+1,j  ,0) + jx(i+1,j-1,0) + jxo(i+1,j-1,0))/4._rt
+                        : -c*mu0*(jx(i+1,j  ,0) +                  jx(i+1,j-1,0)                 )/2._rt;
 
-                    amrex::Real phi_y_p = (Ezh(i+1,j  ,0)+Ezh(i+1,j+1,0)-Ezh(i  ,j  ,0)-Ezh(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real phi_y_m = (Ezh(i+1,j-1,0)+Ezh(i+1,j  ,0)-Ezh(i  ,j-1,0)-Ezh(i  ,j  ,0))/(2*dx[0]) ;
+                    const amrex::Real phi_y_p = (Ezm(i+1,j  ,0)+Ezm(i+1,j+1,0)-Ezm(i  ,j  ,0)-Ezm(i  ,j+1,0))/(2._rt*dx[0]) ;
+                    const amrex::Real phi_y_m = (Ezm(i+1,j-1,0)+Ezm(i+1,j  ,0)-Ezm(i  ,j-1,0)-Ezm(i  ,j  ,0))/(2._rt*dx[0]) ;
 
-                    Ex_tmp(i,j,0) = (Ex(i,j-1,0) + Ex(i,j+1,0))/2 - c*(By(i,j+1,0) - By(i,j-1,0))/2 + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2 ;
+                    Ex_tmp(i,j,0) = (Ex(i,j-1,0) + Ex(i,j+1,0))/2 - c*(By(i,j+1,0) - By(i,j-1,0))/2._rt + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2._rt;
 
                     amrex::ignore_unused(k);
-
 #endif
 
-                     
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jy(i  ,j+1,k+1))/2 - c*(Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i  ,j+1,k  )-Bzh(i  ,j+1,k+1))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jy(i  ,j+1,k  ))/2 - c*(Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i  ,j+1,k-1)-Bzh(i  ,j+1,k  ))/(2*dx[0]) ;
+                    const amrex::Real gamma_y_p = half
+                        ? -c*mu0*(jy(i  ,j+1,k  )+jyo(i  ,j+1,k  )+jy(i  ,j+1,k+1)+jyo(i  ,j+1,k+1))/4 - c*(Bzm(i+1,j+1,k  )+Bzm(i+1,j+1,k+1)-Bzm(i  ,j+1,k  )-Bzm(i  ,j+1,k+1))/(2*dx[0])
+                        : -c*mu0*(jy(i  ,j+1,k  )+                 jy(i  ,j+1,k+1)                 )/2 - c*(Bzm(i+1,j+1,k  )+Bzm(i+1,j+1,k+1)-Bzm(i  ,j+1,k  )-Bzm(i  ,j+1,k+1))/(2*dx[0]);
+                    const amrex::Real gamma_y_m = half
+                        ? -c*mu0*(jy(i  ,j+1,k-1)+jyo(i  ,j+1,k-1)+jy(i  ,j+1,k  )+jyo(i  ,j+1,k  ))/4 - c*(Bzm(i+1,j+1,k-1)+Bzm(i+1,j+1,k  )-Bzm(i  ,j+1,k-1)-Bzm(i  ,j+1,k  ))/(2*dx[0])
+                        : -c*mu0*(jy(i  ,j+1,k-1)+                +jy(i  ,j+1,k  )                 )/2 - c*(Bzm(i+1,j+1,k-1)+Bzm(i+1,j+1,k  )-Bzm(i  ,j+1,k-1)-Bzm(i  ,j+1,k  ))/(2*dx[0]);
 
-                    amrex::Real phi_x_p = -(Ezh(i  ,j+1,k  )+Ezh(i  ,j+1,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real phi_x_m = -(Ezh(i  ,j+1,k-1)+Ezh(i  ,j+1,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[1]) ;
+                    const amrex::Real phi_x_p = -(Ezm(i  ,j+1,k  )+Ezm(i  ,j+1,k+1)-Ezm(i  ,j  ,k  )-Ezm(i  ,j  ,k+1))/(2*dx[1]) ;
+                    const amrex::Real phi_x_m = -(Ezm(i  ,j+1,k-1)+Ezm(i  ,j+1,k  )-Ezm(i  ,j  ,k-1)-Ezm(i  ,j  ,k  ))/(2*dx[1]) ;
 
                     Ey_tmp(i,j,k) =  (Ey(i,j,k-1) + Ey(i,j,k+1))/2 + c*(Bx(i,j,k+1) - Bx(i,j,k-1))/2 + (gamma_y_m - phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2  ;
-                
+
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jy(i  ,j+1,0))/2 - c*(Bzh(i+1,j  ,0)+Bzh(i+1,j+1,0)-Bzh(i  ,j  ,0)-Bzh(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jy(i  ,j  ,0))/2 - c*(Bzh(i+1,j-1,0)+Bzh(i+1,j  ,0)-Bzh(i  ,j-1,0)-Bzh(i  ,j  ,0))/(2*dx[0]) ;
+                    const amrex::Real gamma_y_p = half
+                        ? -c*mu0*(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - c*(Bzm(i+1,j  ,0)+Bzm(i+1,j+1,0)-Bzm(i  ,j  ,0)-Bzm(i  ,j+1,0))/(2*dx[0]) 
+                        : -c*mu0*(jy(i  ,j  ,0)+               jy(i  ,j+1,0)               )/2 - c*(Bzm(i+1,j  ,0)+Bzm(i+1,j+1,0)-Bzm(i  ,j  ,0)-Bzm(i  ,j+1,0))/(2*dx[0]);
+                    const amrex::Real gamma_y_m = half
+                        ? -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bzm(i+1,j-1,0)+Bzm(i+1,j  ,0)-Bzm(i  ,j-1,0)-Bzm(i  ,j  ,0))/(2*dx[0])
+                        : -c*mu0*(jy(i  ,j-1,0)+               jy(i  ,j  ,0)               )/2 - c*(Bzm(i+1,j-1,0)+Bzm(i+1,j  ,0)-Bzm(i  ,j-1,0)-Bzm(i  ,j  ,0))/(2*dx[0]);
 
                     Ey_tmp(i,j,0) =  (Ey(i,j-1,0) + Ey(i,j+1,0))/2 + c*(Bx(i,j+1,0) - Bx(i,j-1,0))/2 + (gamma_y_m + gamma_y_p)*dx[2]/2  ;
 
                     amrex::ignore_unused(k);
 
 #endif
-                
+
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_z = - c*mu0*jz(i,j,k) + c*(Byh(i+1,j  ,k  )-Byh(i  ,j  ,k  ))/dx[0] - c*(Bxh(i  ,j+1,k  )-Bxh(i  ,j  ,k  ))/dx[1] ;
-                    Ez_tmp(i,j,k) = Ez(i,j,k) + dx[2]*gamma_z ;
+                    amrex::Real gamma_z = - c*mu0*(jz(i,j,k)+jzo(i,j,k))/2 + c*(By(i+1,j,k)-By(i,j,k))/dx[0] - c*(Bx(i,j+1,k)-Bx(i,j,k))/dx[1] ;
+                    Ezh_tmp(i,j,k) = Ezh(i,j,k) + dx[2]*gamma_z ;
 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_z = - c*mu0*jz(i,j,0) + c*(Byh(i+1,j,0)-Byh(i,j,0))/dx[0] ;
+                    amrex::Real gamma_z = half
+                        ? - c*mu0*(jz(i,j,0)+jzo(i,j,0))/2 + c*(Bym(i+1,j,0)-Bym(i,j,0))/dx[0]
+                        : - c*mu0*(jz(i,j,0)           )   + c*(Bym(i+1,j,0)-Bym(i,j,0))/dx[0];
                     Ez_tmp(i,j,0) = Ez(i,j,0) + dx[2]*gamma_z ;
-
                     amrex::ignore_unused(k);
 
 #endif
                 }
                 );
 
-            // Field B at time step n+1, depending on fields E and B at time steps n and n+1/2 :
+            // Field B at time step n+1/2, depending on fields E and B at time steps n and n-1/2 :
             amrex::ParallelFor(
                 tbx, tby, tbz,
 
@@ -1242,73 +953,80 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jy(i  ,j+1,k+1))/2 - c*(Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i  ,j+1,k  )-Bzh(i  ,j+1,k+1))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jy(i  ,j+1,k  ))/2 - c*(Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i  ,j+1,k-1)-Bzh(i  ,j+1,k  ))/(2*dx[0]) ;
+                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j+1,k  )+jyo(i  ,j+1,k  )+jy(i  ,j+1,k+1)+jyo(i  ,j+1,k+1))/4 - c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i  ,j+1,k  )-Bz(i  ,j+1,k+1))/(2*dx[0]) ;
+                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j+1,k-1)+jyo(i  ,j+1,k-1)+jy(i  ,j+1,k  )+jyo(i  ,j+1,k  ))/4 - c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i  ,j+1,k-1)-Bz(i  ,j+1,k  ))/(2*dx[0]) ;
 
-                    amrex::Real phi_x_p = -(Ezh(i  ,j+1,k  )+Ezh(i  ,j+1,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real phi_x_m = -(Ezh(i  ,j+1,k-1)+Ezh(i  ,j+1,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[1]) ;
+                    amrex::Real phi_x_p = -(Ez(i  ,j+1,k  )+Ez(i  ,j+1,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[1]) ;
+                    amrex::Real phi_x_m = -(Ez(i  ,j+1,k-1)+Ez(i  ,j+1,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[1]) ;
 
-                    Bx_tmp(i, j, k) = c*(Bx(i,j,k-1) + Bx(i,j,k+1))/2 + (Ey(i,j,k+1) - Ey(i,j,k-1))/2 +  (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2 ;
-                
-#elif defined WARPX_DIM_XZ
+                    Bxh_tmp(i, j, k) = c*(Bxh(i,j,k-1) + Bxh(i,j,k+1))/2 + (Eyh(i,j,k+1) - Eyh(i,j,k-1))/2 +  (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2 ;
 
-                    amrex::Real gamma_y_p = -c*mu0*(jy(i  ,j  ,0)+jy(i  ,j+1,0))/2 - c*(Bzh(i+1,j  ,0)+Bzh(i+1,j+1,0)-Bzh(i  ,j  ,0)-Bzh(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real gamma_y_m = -c*mu0*(jy(i  ,j-1,0)+jy(i  ,j  ,0))/2 - c*(Bzh(i+1,j-1,0)+Bzh(i+1,j  ,0)-Bzh(i  ,j-1,0)-Bzh(i  ,j  ,0))/(2*dx[0]) ;
-                
-                    Bx_tmp(i,j,0) = c*(Bx(i,j-1,0) + Bx(i,j+1,0))/2 + (Ey(i,j+1,0) - Ey(i,j-1,0))/2 +  (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
+ #elif defined WARPX_DIM_XZ
+
+                    amrex::Real gamma_y_p = half
+                        ? -c*mu0*(jy(i  ,j  ,0)+jyo(i  ,j  ,0)+jy(i  ,j+1,0)+jyo(i  ,j+1,0))/4 - c*(Bzm(i+1,j  ,0)+Bzm(i+1,j+1,0)-Bzm(i  ,j  ,0)-Bzm(i  ,j+1,0))/(2*dx[0])
+                        : -c*mu0*(jy(i  ,j  ,0)+               jy(i  ,j+1,0)               )/2 - c*(Bzm(i+1,j  ,0)+Bzm(i+1,j+1,0)-Bzm(i  ,j  ,0)-Bzm(i  ,j+1,0))/(2*dx[0]);
+                    amrex::Real gamma_y_m = half
+                        ? -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bzm(i+1,j-1,0)+Bzm(i+1,j  ,0)-Bzm(i  ,j-1,0)-Bzm(i  ,j  ,0))/(2*dx[0])
+                        : -c*mu0*(jy(i  ,j-1,0)+               jy(i  ,j  ,0)               )/2 - c*(Bzm(i+1,j-1,0)+Bzm(i+1,j  ,0)-Bzm(i  ,j-1,0)-Bzm(i  ,j  ,0))/(2*dx[0]);
+
+                    Bx_tmp(i,j,0) = c*(Bx(i,j-1,0) + Bx(i,j+1,0))/2 + (Ey(i,j+1,0) - Ey(i,j-1,0))/2 + (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
-#endif           
-                
+#endif
+
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jx(i+1,j  ,k  ))/2 + c*(Bzh(i+1,j+1,k  )+Bzh(i+1,j+1,k+1)-Bzh(i+1,j  ,k  )-Bzh(i+1,j  ,k+1))/(2*dx[1]) ;
-                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jx(i+1,j  ,k-1))/2 + c*(Bzh(i+1,j+1,k-1)+Bzh(i+1,j+1,k  )-Bzh(i+1,j  ,k-1)-Bzh(i+1,j  ,k  ))/(2*dx[1]) ;
+                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j  ,k+1)+jxo(i+1,j  ,k+1)+jx(i+1,j  ,k  )+jxo(i+1,j  ,k  ))/4 + c*(Bz(i+1,j+1,k  )+Bz(i+1,j+1,k+1)-Bz(i+1,j  ,k  )-Bz(i+1,j  ,k+1))/(2*dx[1]) ;
+                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4 + c*(Bz(i+1,j+1,k-1)+Bz(i+1,j+1,k  )-Bz(i+1,j  ,k-1)-Bz(i+1,j  ,k  ))/(2*dx[1]) ;
 
-                    amrex::Real phi_y_p = (Ezh(i+1,j  ,k  )+Ezh(i+1,j  ,k+1)-Ezh(i  ,j  ,k  )-Ezh(i  ,j  ,k+1))/(2*dx[0]) ;
-                    amrex::Real phi_y_m = (Ezh(i+1,j  ,k-1)+Ezh(i+1,j  ,k  )-Ezh(i  ,j  ,k-1)-Ezh(i  ,j  ,k  ))/(2*dx[0]) ;
+                    amrex::Real phi_y_p = (Ez(i+1,j  ,k  )+Ez(i+1,j  ,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[0]) ;
+                    amrex::Real phi_y_m = (Ez(i+1,j  ,k-1)+Ez(i+1,j  ,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[0]) ;
 
-                    By_tmp(i, j, k) = c*(By(i,j,k-1) + By(i,j,k+1))/2 - (Ex(i,j,k+1) - Ex(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
-                
+                    Byh_tmp(i, j, k) = c*(Byh(i,j,k-1) + Byh(i,j,k+1))/2 - (Exh(i,j,k+1) - Exh(i,j,k-1))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
+
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real gamma_x_p = -c*mu0*(jx(i+1,j+1,0)+jx(i+1,j  ,0))/2 ;
-                    amrex::Real gamma_x_m = -c*mu0*(jx(i+1,j  ,0)+jx(i+1,j-1,0))/2 ;
+                    amrex::Real gamma_x_p = half
+                        ? -c*mu0*(jx(i+1,j+1,0)+jxo(i+1,j+1,0)+jx(i+1,j  ,0)+jxo(i+1,j  ,0))/4
+                        : -c*mu0*(jx(i+1,j+1,0)+               jx(i+1,j  ,0)               )/2;
+                    amrex::Real gamma_x_m = half
+                        ? -c*mu0*(jx(i+1,j  ,0)+jxo(i+1,j  ,0)+jx(i+1,j-1,0)+jxo(i+1,j-1,0))/4
+                        : -c*mu0*(jx(i+1,j  ,0)+               jx(i+1,j-1,0)               )/2;
 
-                    amrex::Real phi_y_p = (Ezh(i+1,j  ,0)+Ezh(i+1,j+1,0)-Ezh(i  ,j  ,0)-Ezh(i  ,j+1,0))/(2*dx[0]) ;
-                    amrex::Real phi_y_m = (Ezh(i+1,j-1,0)+Ezh(i+1,j  ,0)-Ezh(i  ,j-1,0)-Ezh(i  ,j  ,0))/(2*dx[0]) ;
+                    amrex::Real phi_y_p = (Ezm(i+1,j  ,0)+Ezm(i+1,j+1,0)-Ezm(i  ,j  ,0)-Ezm(i  ,j+1,0))/(2*dx[0]) ;
+                    amrex::Real phi_y_m = (Ezm(i+1,j-1,0)+Ezm(i+1,j  ,0)-Ezm(i  ,j-1,0)-Ezm(i  ,j  ,0))/(2*dx[0]) ;
 
                     By_tmp(i,j,0) = c*(By(i,j-1,0) + By(i,j+1,0))/2 - (Ex(i,j+1,0) - Ex(i,j-1,0))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
 
                     amrex::ignore_unused(k);
 
-#endif                               
-                
+#endif
+
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
 
-                    amrex::Real phi_z = (Exh(i+1,j+1,k) - Exh(i+1,j,k))/dx[1] - (Eyh(i+1,j+1,k) - Eyh(i,j+1,k))/dx[0] ;
+                    amrex::Real phi_z = (Exm(i+1,j+1,k) - Exm(i+1,j,k))/dx[1] - (Eym(i+1,j+1,k) - Eym(i,j+1,k))/dx[0] ;
                     Bz_tmp(i, j, k) = c*Bz(i,j,k) + dx[2]*phi_z ;
 
 #elif defined WARPX_DIM_XZ
 
-                    amrex::Real phi_z = - (Eyh(i+1,j,0) - Eyh(i,j,0))/dx[0] ;
-                    Bz_tmp(i,j,0) = c*Bz(i,j,0) + dx[2]*phi_z ;
-
+                    const amrex::Real phi_z = - (Eym(i+1,j,0) - Eym(i,j,0))/dx[0] ;
+                    Bz_tmp(i, j, 0) = c*Bz(i,j,0) + dx[2]*phi_z ;
                     amrex::ignore_unused(k);
 
 #endif
 
                 }
                 );
-            
-            // Overwrite the values at time step n+1 kept in the temporary arrays on the regular arrays
+
+            // Overwrite the values at time step n+1/2 kept in the temporary arrays on the regular arrays
             // For E
             amrex::ParallelFor(
                 tex, tey, tez,
@@ -1326,18 +1044,17 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    Ey(i,j,k) = Ey_tmp(i,j,k);
+                    Eyh(i,j,k) = Eyh_tmp(i,j,k);
 
 #elif defined WARPX_DIM_XZ
                     Ey(i,j,0) = Ey_tmp(i,j,0);
                     amrex::ignore_unused(k);
-
 #endif
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    Ez(i,j,k) = Ez_tmp(i,j,k);
+                    Ezh(i,j,k) = Ezh_tmp(i,j,k);
 
 #elif defined WARPX_DIM_XZ
                     Ez(i,j,0) = Ez_tmp(i,j,0);
@@ -1346,25 +1063,24 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 #endif
                 }
                 );
-            
-            // For B 
+
+            // For B
             amrex::ParallelFor(
                 tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    Bx(i,j,k) = Bx_tmp(i,j,k)/c;
+                    Bxh(i,j,k) = Bxh_tmp(i,j,k)/c;
 
 #elif defined WARPX_DIM_XZ
                     Bx(i,j,0) = Bx_tmp(i,j,0)/c;
                     amrex::ignore_unused(k);
-
 #endif
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
 #if defined WARPX_DIM_3D
-                    By(i,j,k) = By_tmp(i,j,k)/c;
+                    Byh(i,j,k) = Byh_tmp(i,j,k)/c;
 
 #elif defined WARPX_DIM_XZ
                     By(i,j,0) = By_tmp(i,j,0)/c;
@@ -1384,8 +1100,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 #endif
                 }
                 );
-            
         }
-        std::cout << "After Loop MFI for full time step" << std::endl ;
+        std::cout << "After Loop MFI for half time step" << std::endl ;
     }
 }
