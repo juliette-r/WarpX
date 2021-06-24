@@ -812,7 +812,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 #endif
         // Loop over boxes on this rank
         std::cout << "Before Loop MFI" << std::endl ;
-        for ( MFIter mfi(*Efield[0], false); mfi.isValid(); ++mfi )  {
+        for ( MFIter mfi(*Efield[0], TilingIfNotGPU()); mfi.isValid(); ++mfi )  {
 
             std::cout << "Loop MFI" << std::endl ;
 
