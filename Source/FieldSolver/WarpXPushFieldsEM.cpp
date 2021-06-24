@@ -787,18 +787,24 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 
         // Temporary fields to update E and B by 1 time step, using the middle value
         std::cout<<Efield[0]->boxArray()<<'\n';
-        amrex::MultiFab mf_Ex_tmp(Efield[0]->boxArray(), Efield[0]->DistributionMap(), 1, 0);
-        amrex::MultiFab mf_Ey_tmp(Efield[1]->boxArray(), Efield[1]->DistributionMap(), 1, 0);
-        amrex::MultiFab mf_Ez_tmp(Efield[2]->boxArray(), Efield[2]->DistributionMap(), 1, 0);
-        amrex::MultiFab mf_Bx_tmp(Bfield[0]->boxArray(), Bfield[0]->DistributionMap(), 1, 0);
-        amrex::MultiFab mf_By_tmp(Bfield[1]->boxArray(), Bfield[1]->DistributionMap(), 1, 0);
-        amrex::MultiFab mf_Bz_tmp(Bfield[2]->boxArray(), Bfield[2]->DistributionMap(), 1, 0);
-        mf_Ex_tmp.setVal(0.);
-        mf_Ey_tmp.setVal(0.);
-        mf_Ez_tmp.setVal(0.);
-        mf_Bx_tmp.setVal(0.);
-        mf_By_tmp.setVal(0.);
-        mf_Bz_tmp.setVal(0.);
+        amrex::MultiFab mf_Ex_tmp(Efield[0]->boxArray(), Efield[0]->DistributionMap(), 1, Efield[0]->nGrowVect());
+        amrex::MultiFab mf_Ey_tmp(Efield[1]->boxArray(), Efield[1]->DistributionMap(), 1, Efield[1]->nGrowVect());
+        amrex::MultiFab mf_Ez_tmp(Efield[2]->boxArray(), Efield[2]->DistributionMap(), 1, Efield[2]->nGrowVect());
+        amrex::MultiFab mf_Bx_tmp(Bfield[0]->boxArray(), Bfield[0]->DistributionMap(), 1, Bfield[0]->nGrowVect());
+        amrex::MultiFab mf_By_tmp(Bfield[1]->boxArray(), Bfield[1]->DistributionMap(), 1, Bfield[1]->nGrowVect());
+        amrex::MultiFab mf_Bz_tmp(Bfield[2]->boxArray(), Bfield[2]->DistributionMap(), 1, Bfield[2]->nGrowVect());
+        amrex::MultiFab::Copy(mf_Ex_tmp, *Efield[0], 0, 0, 1, Efield[0]->nGrowVect());
+        amrex::MultiFab::Copy(mf_Ey_tmp, *Efield[1], 0, 0, 1, Efield[1]->nGrowVect());
+        amrex::MultiFab::Copy(mf_Ez_tmp, *Efield[2], 0, 0, 1, Efield[2]->nGrowVect());
+        amrex::MultiFab::Copy(mf_Bx_tmp, *Bfield[0], 0, 0, 1, Bfield[0]->nGrowVect());
+        amrex::MultiFab::Copy(mf_By_tmp, *Bfield[1], 0, 0, 1, Bfield[1]->nGrowVect());
+        amrex::MultiFab::Copy(mf_Bz_tmp, *Bfield[2], 0, 0, 1, Bfield[2]->nGrowVect());
+        //mf_Ex_tmp.setVal(0.);
+        //mf_Ey_tmp.setVal(0.);
+        //mf_Ez_tmp.setVal(0.);
+        //mf_Bx_tmp.setVal(0.);
+        //mf_By_tmp.setVal(0.);
+        //mf_Bz_tmp.setVal(0.);
 
 // Updating E and B at time step n+1/2
 #ifdef AMREX_USE_OMP
@@ -887,7 +893,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     const amrex::Real phi_y_p = (Ezm(i+1,j  ,0)+Ezm(i+1,j+1,0)-Ezm(i  ,j  ,0)-Ezm(i  ,j+1,0))/(2._rt*dx[0]) ;
                     const amrex::Real phi_y_m = (Ezm(i+1,j-1,0)+Ezm(i+1,j  ,0)-Ezm(i  ,j-1,0)-Ezm(i  ,j  ,0))/(2._rt*dx[0]) ;
 
-                    Ex_tmp(i,j,0) = (Ex(i,j-1,0) + Ex(i,j+1,0))/2 - c*(By(i,j+1,0) - By(i,j-1,0))/2._rt + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2._rt;
+                    Ex(i,j,0) = (Ex_tmp(i,j-1,0) + Ex_tmp(i,j+1,0))/2 - c*(By_tmp(i,j+1,0) - By_tmp(i,j-1,0))/2._rt + (gamma_x_m + phi_y_m + gamma_x_p - phi_y_p)*dx[2]/2._rt;
                     amrex::ignore_unused(k);
 #endif
 
@@ -906,7 +912,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     const amrex::Real phi_x_p = -(Ezm(i  ,j+1,k  )+Ezm(i  ,j+1,k+1)-Ezm(i  ,j  ,k  )-Ezm(i  ,j  ,k+1))/(2*dx[1]) ;
                     const amrex::Real phi_x_m = -(Ezm(i  ,j+1,k-1)+Ezm(i  ,j+1,k  )-Ezm(i  ,j  ,k-1)-Ezm(i  ,j  ,k  ))/(2*dx[1]) ;
 
-                    Ey_tmp(i,j,k) =  (Ey(i,j,k-1) + Ey(i,j,k+1))/2 + c*(Bx(i,j,k+1) - Bx(i,j,k-1))/2 + (gamma_y_m - phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2  ;
+                    Ey(i,j,k) =  (Ey_tmp(i,j,k-1) + Ey_tmp(i,j,k+1))/2 + c*(Bx_tmp(i,j,k+1) - Bx_tmp(i,j,k-1))/2 + (gamma_y_m - phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2  ;
 
 #elif defined WARPX_DIM_XZ
                     const amrex::Real gamma_y_p = half
@@ -916,7 +922,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                         ? -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bzm(i+1,j-1,0)+Bzm(i+1,j  ,0)-Bzm(i  ,j-1,0)-Bzm(i  ,j  ,0))/(2*dx[0])
                         : -c*mu0*(jy(i  ,j-1,0)+               jy(i  ,j  ,0)               )/2 - c*(Bzm(i+1,j-1,0)+Bzm(i+1,j  ,0)-Bzm(i  ,j-1,0)-Bzm(i  ,j  ,0))/(2*dx[0]);
 
-                    Ey_tmp(i,j,0) =  (Ey(i,j-1,0) + Ey(i,j+1,0))/2 + c*(Bx(i,j+1,0) - Bx(i,j-1,0))/2 + (gamma_y_m + gamma_y_p)*dx[2]/2  ;
+                    Ey(i,j,0) =  (Ey_tmp(i,j-1,0) + Ey_tmp(i,j+1,0))/2 + c*(Bx_tmp(i,j+1,0) - Bx_tmp(i,j-1,0))/2 + (gamma_y_m + gamma_y_p)*dx[2]/2  ;
                     amrex::ignore_unused(k);
 
 #endif
@@ -933,7 +939,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     amrex::Real gamma_z = half
                         ? - c*mu0*(jz(i,j,0)+jzo(i,j,0))/2._rt + c*(Bym(i+1,j,0)-Bym(i,j,0))/dx[0]
                         : - c*mu0*(jz(i,j,0)           )       + c*(Bym(i+1,j,0)-Bym(i,j,0))/dx[0];
-                    Ez_tmp(i,j,0) = Ez(i,j,0) + dx[2]*gamma_z ;
+                    Ez(i,j,0) = Ez_tmp(i,j,0) + dx[2]*gamma_z ;
                     amrex::ignore_unused(k);
 #endif
                 }
@@ -953,7 +959,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     amrex::Real phi_x_p = -(Ez(i  ,j+1,k  )+Ez(i  ,j+1,k+1)-Ez(i  ,j  ,k  )-Ez(i  ,j  ,k+1))/(2*dx[1]) ;
                     amrex::Real phi_x_m = -(Ez(i  ,j+1,k-1)+Ez(i  ,j+1,k  )-Ez(i  ,j  ,k-1)-Ez(i  ,j  ,k  ))/(2*dx[1]) ;
 
-                    Bxh_tmp(i, j, k) = c*(Bxh(i,j,k-1) + Bxh(i,j,k+1))/2 + (Eyh(i,j,k+1) - Eyh(i,j,k-1))/2 +  (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2 ;
+                    Bxh_tmp(i, j, k) = (Bxh(i,j,k-1) + Bxh(i,j,k+1))/2 + (Eyh(i,j,k+1) - Eyh(i,j,k-1))/2/c + (-gamma_y_m + phi_x_m + gamma_y_p + phi_x_p)*dx[2]/2/c ;
 
  #elif defined WARPX_DIM_XZ
 
@@ -964,7 +970,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                         ? -c*mu0*(jy(i  ,j-1,0)+jyo(i  ,j-1,0)+jy(i  ,j  ,0)+jyo(i  ,j  ,0))/4 - c*(Bzm(i+1,j-1,0)+Bzm(i+1,j  ,0)-Bzm(i  ,j-1,0)-Bzm(i  ,j  ,0))/(2*dx[0])
                         : -c*mu0*(jy(i  ,j-1,0)+               jy(i  ,j  ,0)               )/2 - c*(Bzm(i+1,j-1,0)+Bzm(i+1,j  ,0)-Bzm(i  ,j-1,0)-Bzm(i  ,j  ,0))/(2*dx[0]);
 
-                    Bx_tmp(i,j,0) = c*(Bx(i,j-1,0) + Bx(i,j+1,0))/2 + (Ey(i,j+1,0) - Ey(i,j-1,0))/2 + (-gamma_y_m + gamma_y_p)*dx[2]/2 ;
+                    Bx(i,j,0) = (Bx_tmp(i,j-1,0) + Bx_tmp(i,j+1,0))/2 + (Ey_tmp(i,j+1,0) - Ey_tmp(i,j-1,0))/2/c + (-gamma_y_m + gamma_y_p)*dx[2]/2/c ;
 
                     amrex::ignore_unused(k);
 
@@ -995,7 +1001,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                     amrex::Real phi_y_p = (Ezm(i+1,j  ,0)+Ezm(i+1,j+1,0)-Ezm(i  ,j  ,0)-Ezm(i  ,j+1,0))/(2*dx[0]) ;
                     amrex::Real phi_y_m = (Ezm(i+1,j-1,0)+Ezm(i+1,j  ,0)-Ezm(i  ,j-1,0)-Ezm(i  ,j  ,0))/(2*dx[0]) ;
 
-                    By_tmp(i,j,0) = c*(By(i,j-1,0) + By(i,j+1,0))/2 - (Ex(i,j+1,0) - Ex(i,j-1,0))/2 + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2 ;
+                    By(i,j,0) = (By_tmp(i,j-1,0) + By_tmp(i,j+1,0))/2 - (Ex_tmp(i,j+1,0) - Ex_tmp(i,j-1,0))/2/c + (gamma_x_m + phi_y_m - gamma_x_p + phi_y_p)*dx[2]/2/c ;
 
                     amrex::ignore_unused(k);
 
@@ -1007,12 +1013,12 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 #if defined WARPX_DIM_3D
 
                     amrex::Real phi_z = (Exm(i+1,j+1,k) - Exm(i+1,j,k))/dx[1] - (Eym(i+1,j+1,k) - Eym(i,j+1,k))/dx[0] ;
-                    Bz_tmp(i, j, k) = c*Bz(i,j,k) + dx[2]*phi_z ;
+                    Bz_tmp(i, j, k) = Bz(i,j,k) + dx[2]*phi_z/c ;
 
 #elif defined WARPX_DIM_XZ
 
                     const amrex::Real phi_z = - (Eym(i+1,j,0) - Eym(i,j,0))/dx[0] ;
-                    Bz_tmp(i, j, 0) = c*Bz(i,j,0) + dx[2]*phi_z ;
+                    Bz(i, j, 0) = Bz_tmp(i,j,0) + dx[2]*phi_z/c ;
                     amrex::ignore_unused(k);
 #endif
                 }
@@ -1094,6 +1100,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                 );
         */
         }
+        /*
         amrex::MultiFab::Copy(*Efield[0], mf_Ex_tmp, 0, 0, 1, 0);
         amrex::MultiFab::Copy(*Efield[1], mf_Ey_tmp, 0, 0, 1, 0);
         amrex::MultiFab::Copy(*Efield[2], mf_Ez_tmp, 0, 0, 1, 0);
@@ -1103,6 +1110,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
         Bfield[0]->mult(1./c);
         Bfield[1]->mult(1./c);
         Bfield[2]->mult(1./c);
+        */
         std::cout << "After Loop MFI for half time step" << std::endl ;
     }
 }

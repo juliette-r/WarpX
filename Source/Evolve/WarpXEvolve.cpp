@@ -405,14 +405,44 @@ WarpX::OneStep_nosub (Real cur_time)
     } else if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
         // RIP scheme
         amrex::Print()<<"RIP scheme\n";
-        FillBoundaryE(guard_cells.ng_alloc_EB);
-        FillBoundaryB(guard_cells.ng_alloc_EB);
+        constexpr int lev = 0;
+
+        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        NodalSyncE();
+        NodalSyncB();
+
+        //FillBoundaryE(guard_cells.ng_alloc_EB);
+        //FillBoundaryB(guard_cells.ng_alloc_EB);
         EvolveRIP(dt[0], true);
-        FillBoundaryE(guard_cells.ng_alloc_EB);
-        FillBoundaryB(guard_cells.ng_alloc_EB);
+
+        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+
+        //FillBoundaryE(guard_cells.ng_alloc_EB);
+        //FillBoundaryB(guard_cells.ng_alloc_EB);
         EvolveRIP(dt[0], false);
-        FillBoundaryE(guard_cells.ng_alloc_EB);
-        FillBoundaryB(guard_cells.ng_alloc_EB);
+
+        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        NodalSyncE();
+        NodalSyncB();
+
+        
+        //FillBoundaryE(guard_cells.ng_alloc_EB);
+        //FillBoundaryB(guard_cells.ng_alloc_EB);
         // store current in the old array
         for (int lev = 0; lev <= max_level; lev++) {
             for (int dir=0; dir<3; dir++){
