@@ -211,6 +211,10 @@ guardCellManager::Init (
             ng_FieldSolver  = CartesianCKCAlgorithm::GetMaxGuardCell();
             ng_FieldSolverF = CartesianCKCAlgorithm::GetMaxGuardCell();
             ng_FieldSolverG = CartesianCKCAlgorithm::GetMaxGuardCell();
+        } else if (maxwell_solver_id == MaxwellSolverAlgo::RIP) {
+            ng_FieldSolver  = IntVect(AMREX_D_DECL(2, 2, 2));;
+            ng_FieldSolverF = IntVect(AMREX_D_DECL(2, 2, 2));;
+            ng_FieldSolverG = IntVect(AMREX_D_DECL(2, 2, 2));;
         }
     }
 #endif
