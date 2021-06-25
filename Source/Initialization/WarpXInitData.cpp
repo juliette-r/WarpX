@@ -439,6 +439,7 @@ WarpX::InitLevelData (int lev, Real /*time*/)
 
         if (B_ext_grid_s == "constant" || B_ext_grid_s == "default") {
            Bfield_fp[lev][i]->setVal(B_external_grid[i]);
+           Bfield_fp_half[lev][i]->setVal(0.);
            if (fft_do_time_averaging) {
                 Bfield_avg_fp[lev][i]->setVal(B_external_grid[i]);
            }
@@ -453,6 +454,7 @@ WarpX::InitLevelData (int lev, Real /*time*/)
         }
         if (E_ext_grid_s == "constant" || E_ext_grid_s == "default") {
            Efield_fp[lev][i]->setVal(E_external_grid[i]);
+           Efield_fp_half[lev][i]->setVal(0.);
            if (fft_do_time_averaging) {
                Efield_avg_fp[lev][i]->setVal(E_external_grid[i]);
             }
@@ -594,6 +596,9 @@ WarpX::InitLevelData (int lev, Real /*time*/)
             WarpX::setLoadBalanceEfficiency(lev, -1);
         }
     }
+    current_fp_old[lev][0]->setVal(0., guard_cells.ng_depos_J);
+    current_fp_old[lev][1]->setVal(0., guard_cells.ng_depos_J);
+    current_fp_old[lev][2]->setVal(0., guard_cells.ng_depos_J);
 }
 
 void

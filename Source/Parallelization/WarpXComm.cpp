@@ -517,6 +517,9 @@ WarpX::FillBoundaryE (int lev, PatchType patch_type, IntVect ng)
             Efield_fp[lev][0]->FillBoundary(ng, period);
             Efield_fp[lev][1]->FillBoundary(ng, period);
             Efield_fp[lev][2]->FillBoundary(ng, period);
+            Efield_fp_half[lev][0]->FillBoundary(ng, period);
+            Efield_fp_half[lev][1]->FillBoundary(ng, period);
+            Efield_fp_half[lev][2]->FillBoundary(ng, period);
         }
     }
     else if (patch_type == PatchType::coarse)
@@ -578,6 +581,9 @@ WarpX::FillBoundaryB (int lev, PatchType patch_type, IntVect ng)
             Bfield_fp[lev][0]->FillBoundary(ng, period);
             Bfield_fp[lev][1]->FillBoundary(ng, period);
             Bfield_fp[lev][2]->FillBoundary(ng, period);
+            Bfield_fp_half[lev][0]->FillBoundary(ng, period);
+            Bfield_fp_half[lev][1]->FillBoundary(ng, period);
+            Bfield_fp_half[lev][2]->FillBoundary(ng, period);
         }
     }
     else if (patch_type == PatchType::coarse)
@@ -1242,6 +1248,9 @@ void WarpX::NodalSyncE (int lev, PatchType patch_type)
         Efield_fp[lev][0]->OverrideSync(period);
         Efield_fp[lev][1]->OverrideSync(period);
         Efield_fp[lev][2]->OverrideSync(period);
+        Efield_fp_half[lev][0]->OverrideSync(period);
+        Efield_fp_half[lev][1]->OverrideSync(period);
+        Efield_fp_half[lev][2]->OverrideSync(period);
     }
     else if (patch_type == PatchType::coarse)
     {
@@ -1275,6 +1284,9 @@ void WarpX::NodalSyncB (int lev, PatchType patch_type)
         Bfield_fp[lev][0]->OverrideSync(period);
         Bfield_fp[lev][1]->OverrideSync(period);
         Bfield_fp[lev][2]->OverrideSync(period);
+        Bfield_fp_half[lev][0]->OverrideSync(period);
+        Bfield_fp_half[lev][1]->OverrideSync(period);
+        Bfield_fp_half[lev][2]->OverrideSync(period);
     }
     else if (patch_type == PatchType::coarse)
     {

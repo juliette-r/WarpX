@@ -404,13 +404,54 @@ WarpX::OneStep_nosub (Real cur_time)
             FillBoundaryB(guard_cells.ng_alloc_EB);
     } else if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
         // RIP scheme
-        // Note: I only created empty current arrays appended with _old
-        // to store the value from the previous time step, so you can do the averaging.
-        // You will need to fill it with the old value when needed, and take care of the averaging.
         amrex::Print()<<"RIP scheme\n";
+        constexpr int lev = 0;
+
+        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        NodalSyncE();
+        NodalSyncB();
+
+        //FillBoundaryE(guard_cells.ng_alloc_EB);
+        //FillBoundaryB(guard_cells.ng_alloc_EB);
+        EvolveRIP(dt[0], true);
+
+        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+
+        //FillBoundaryE(guard_cells.ng_alloc_EB);
+        //FillBoundaryB(guard_cells.ng_alloc_EB);
         EvolveRIP(dt[0], false);
+
+        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        NodalSyncE();
+        NodalSyncB();
+
+        
+        //FillBoundaryE(guard_cells.ng_alloc_EB);
+        //FillBoundaryB(guard_cells.ng_alloc_EB);
+        // store current in the old array
+        for (int lev = 0; lev <= max_level; lev++) {
+            for (int dir=0; dir<3; dir++){
+                amrex::MultiFab::Copy(*current_fp_old[lev][dir], *current_fp[lev][dir],
+                                      0, 0, 1, current_fp[lev][dir]->nGrowVect());
+            }
+        }
     } else {
-        amrex::Abort("Umknown Maxwell Solver");
+        amrex::Abort("Unknown Maxwell Solver");
     }
 
     if (warpx_py_afterEsolve) warpx_py_afterEsolve();
