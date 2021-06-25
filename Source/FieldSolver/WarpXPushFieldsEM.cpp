@@ -881,7 +881,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                         : -c*mu0*(jx(i+1,j  ,k+1)+                 jx(i+1,j  ,k  )                 )/2._rt + c*(Bzm(i+1,j+1,k  )+Bzm(i+1,j+1,k+1)-Bzm(i+1,j  ,k  )-Bzm(i+1,j  ,k+1))/(2._rt*dx[1]);    
                     amrex::Real gamma_x_m = half
                         ? -c*mu0*(jx(i+1,j  ,k  )+jxo(i+1,j  ,k  )+jx(i+1,j  ,k-1)+jxo(i+1,j  ,k-1))/4._rt + c*(Bzm(i+1,j+1,k-1)+Bzm(i+1,j+1,k  )-Bzm(i+1,j  ,k-1)-Bzm(i+1,j  ,k  ))/(2._rt*dx[1]) 
-                        : -c*mu0*(jx(i+1,j  ,k  )                 +jx(i+1,j  ,k-1)+                )/2._rt + c*(Bzm(i+1,j+1,k-1)+Bzm(i+1,j+1,k  )-Bzm(i+1,j  ,k-1)-Bzm(i+1,j  ,k  ))/(2._rt*dx[1]);
+                        : -c*mu0*(jx(i+1,j  ,k  )                 +jx(i+1,j  ,k-1)                 )/2._rt + c*(Bzm(i+1,j+1,k-1)+Bzm(i+1,j+1,k  )-Bzm(i+1,j  ,k-1)-Bzm(i+1,j  ,k  ))/(2._rt*dx[1]);
                     
                     amrex::Real phi_y_p = (Ezm(i+1,j  ,k  )+Ezm(i+1,j  ,k+1)-Ezm(i  ,j  ,k  )-Ezm(i  ,j  ,k+1))/(2._rt*dx[0]);
                     amrex::Real phi_y_m = (Ezm(i+1,j  ,k-1)+Ezm(i+1,j  ,k  )-Ezm(i  ,j  ,k-1)-Ezm(i  ,j  ,k  ))/(2._rt*dx[0]);
