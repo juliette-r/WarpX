@@ -408,16 +408,22 @@ WarpX::OneStep_nosub (Real cur_time)
         constexpr int lev = 0;
         FillBoundaryE(guard_cells.ng_alloc_EB);
         FillBoundaryB(guard_cells.ng_alloc_EB);
+        NodalSyncE();
+        NodalSyncB();
 
         EvolveRIP(dt[0], true);
 
         FillBoundaryE(guard_cells.ng_alloc_EB);
         FillBoundaryB(guard_cells.ng_alloc_EB);
+        NodalSyncE();
+        NodalSyncB();
 
         EvolveRIP(dt[0], false);
         
         FillBoundaryE(guard_cells.ng_alloc_EB);
         FillBoundaryB(guard_cells.ng_alloc_EB);
+        NodalSyncE();
+        NodalSyncB();
 
         // store current in the old array
         for (int lev = 0; lev <= max_level; lev++) {
