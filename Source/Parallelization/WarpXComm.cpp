@@ -946,8 +946,19 @@ WarpX::ApplyFilterandSumBoundaryJ (int lev, PatchType patch_type)
             MultiFab jf(j[idim]->boxArray(), j[idim]->DistributionMap(), j[idim]->nComp(), ng);
             bilinear_filter.ApplyStencil(jf, *j[idim]);
             WarpXSumGuardCells(*(j[idim]), jf, period, 0, (j[idim])->nComp());
+            if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
+                if (patch_type == PatchType::fine) {
+                    auto& jo = current_fp_old[lev];
+                    MultiFab jfo(jo[idim]->boxArray(), jo[idim]->DistributionMap(), jo[idim]->nComp(), ng);
+                    bilinear_filter.ApplyStencil(jfo, *jo[idim]);
+                    WarpXSumGuardCells(*(jo[idim]), jfo, period, 0, (jo[idim])->nComp());
+                }
+            }
         } else {
             WarpXSumGuardCells(*(j[idim]), period, 0, (j[idim])->nComp());
+            if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
+                if (patch_type == PatchType::fine) WarpXSumGuardCells(*(current_fp_old[lev][idim]), period, 0, (current_fp_old[lev][idim])->nComp());
+            }
         }
     }
 }

@@ -302,6 +302,17 @@ void
 WarpX::OneStep_nosub (Real cur_time)
 {
 
+    if (WarpX::maxwell_solver_id == MaxwellSolverAlgo::RIP) {
+        // store current in the old array
+        // Only store valid cells. Guard cells are exchanged later.
+        for (int lev = 0; lev <= max_level; lev++) {
+            for (int dir=0; dir<3; dir++){
+                current_fp_old[lev][dir]->ParallelCopy(
+                    *current_fp[lev][dir],0,0,1);
+            }
+        }
+    }
+
     // Push particle from x^{n} to x^{n+1}
     //               from p^{n-1/2} to p^{n+1/2}
     // Deposit current j^{n+1/2}
@@ -419,21 +430,12 @@ WarpX::OneStep_nosub (Real cur_time)
         NodalSyncB();
 
         EvolveRIP(dt[0], false);
-        
+
         FillBoundaryE(guard_cells.ng_alloc_EB);
         FillBoundaryB(guard_cells.ng_alloc_EB);
         NodalSyncE();
         NodalSyncB();
 
-        // store current in the old array
-        for (int lev = 0; lev <= max_level; lev++) {
-            for (int dir=0; dir<3; dir++){
-                current_fp_old[lev][dir]->ParallelCopy(
-                    *current_fp[lev][dir],0,0,1,
-                    current_fp[lev][dir]->nGrowVect(),
-                    current_fp[lev][dir]->nGrowVect());
-            }
-        }
     } else {
         amrex::Abort("Unknown Maxwell Solver");
     }
