@@ -407,64 +407,25 @@ WarpX::OneStep_nosub (Real cur_time)
         amrex::Print()<<"RIP scheme\n";
         constexpr int lev = 0;
 
-        Efield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-
-        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        FillBoundaryE(guard_cells.ng_alloc_EB);
+        FillBoundaryB(guard_cells.ng_alloc_EB);
         NodalSyncE();
         NodalSyncB();
 
-        //FillBoundaryE(guard_cells.ng_alloc_EB);
-        //FillBoundaryB(guard_cells.ng_alloc_EB);
         EvolveRIP(dt[0], true);
-        Efield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
 
-        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        FillBoundaryE(guard_cells.ng_alloc_EB);
+        FillBoundaryB(guard_cells.ng_alloc_EB);
         NodalSyncE();
         NodalSyncB();
 
-        //FillBoundaryE(guard_cells.ng_alloc_EB);
-        //FillBoundaryB(guard_cells.ng_alloc_EB);
         EvolveRIP(dt[0], false);
-        Efield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Efield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
 
-
-        Bfield_fp[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][0]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][1]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
-        Bfield_fp_half[lev][2]->FillBoundary(guard_cells.ng_alloc_EB, Geom(lev).periodicity());
+        FillBoundaryE(guard_cells.ng_alloc_EB);
+        FillBoundaryB(guard_cells.ng_alloc_EB);
         NodalSyncE();
         NodalSyncB();
-
         
-        //FillBoundaryE(guard_cells.ng_alloc_EB);
-        //FillBoundaryB(guard_cells.ng_alloc_EB);
         // store current in the old array
         for (int lev = 0; lev <= max_level; lev++) {
             for (int dir=0; dir<3; dir++){

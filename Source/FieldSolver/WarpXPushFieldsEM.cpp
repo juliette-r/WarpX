@@ -793,18 +793,22 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
         amrex::MultiFab mf_Bx_tmp(Bfield[0]->boxArray(), Bfield[0]->DistributionMap(), 1, Bfield[0]->nGrowVect());
         amrex::MultiFab mf_By_tmp(Bfield[1]->boxArray(), Bfield[1]->DistributionMap(), 1, Bfield[1]->nGrowVect());
         amrex::MultiFab mf_Bz_tmp(Bfield[2]->boxArray(), Bfield[2]->DistributionMap(), 1, Bfield[2]->nGrowVect());
+        
+        mf_Ex_tmp.ParallelCopy(*Efield[0],0,0,1,Efield[0]->nGrowVect(), Efield[0]->nGrowVect()) ;
+        mf_Ey_tmp.ParallelCopy(*Efield[1],0,0,1,Efield[1]->nGrowVect(), Efield[1]->nGrowVect()) ;
+        mf_Ez_tmp.ParallelCopy(*Efield[2],0,0,1,Efield[2]->nGrowVect(), Efield[2]->nGrowVect()) ;
+        mf_Bx_tmp.ParallelCopy(*Bfield[0],0,0,1,Bfield[0]->nGrowVect(), Bfield[0]->nGrowVect()) ;
+        mf_By_tmp.ParallelCopy(*Bfield[1],0,0,1,Bfield[1]->nGrowVect(), Bfield[1]->nGrowVect()) ;
+        mf_Bz_tmp.ParallelCopy(*Bfield[2],0,0,1,Bfield[2]->nGrowVect(), Bfield[2]->nGrowVect()) ;
+
+        /*
         amrex::MultiFab::Copy(mf_Ex_tmp, *Efield[0], 0, 0, 1, Efield[0]->nGrowVect());
         amrex::MultiFab::Copy(mf_Ey_tmp, *Efield[1], 0, 0, 1, Efield[1]->nGrowVect());
         amrex::MultiFab::Copy(mf_Ez_tmp, *Efield[2], 0, 0, 1, Efield[2]->nGrowVect());
         amrex::MultiFab::Copy(mf_Bx_tmp, *Bfield[0], 0, 0, 1, Bfield[0]->nGrowVect());
         amrex::MultiFab::Copy(mf_By_tmp, *Bfield[1], 0, 0, 1, Bfield[1]->nGrowVect());
         amrex::MultiFab::Copy(mf_Bz_tmp, *Bfield[2], 0, 0, 1, Bfield[2]->nGrowVect());
-        //mf_Ex_tmp.setVal(0.);
-        //mf_Ey_tmp.setVal(0.);
-        //mf_Ez_tmp.setVal(0.);
-        //mf_Bx_tmp.setVal(0.);
-        //mf_By_tmp.setVal(0.);
-        //mf_Bz_tmp.setVal(0.);
+        */
 
 // Updating E and B
 #ifdef AMREX_USE_OMP
@@ -895,7 +899,7 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
                         : -c*mu0*(jx(i,j+1,0) +                jx(i,j  ,0)               )/2._rt;
                     const amrex::Real gamma_x_m = half
                         ? -c*mu0*(jx(i,j  ,0) + jxo(i,j  ,0) + jx(i,j-1,0) + jxo(i,j-1,0))/4._rt
-                        : -c*mu0*(jx(i,j  ,0) +                jx(i,j-1,0)              )/2._rt;
+                        : -c*mu0*(jx(i,j  ,0) +                jx(i,j-1,0)               )/2._rt;
 
                     const amrex::Real phi_y_p = (Ezm(i+1,j  ,0)+Ezm(i+1,j+1,0)-Ezm(i  ,j  ,0)-Ezm(i  ,j+1,0))/(2._rt*dx[0]);
                     const amrex::Real phi_y_m = (Ezm(i+1,j-1,0)+Ezm(i+1,j  ,0)-Ezm(i  ,j-1,0)-Ezm(i  ,j  ,0))/(2._rt*dx[0]);
