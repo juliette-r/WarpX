@@ -781,40 +781,34 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
         // Get parameters of cells
         std::array<Real,3> dx = CellSize(lev);
 
-        amrex::Print()<<"dx[0] = " << dx[0]<<'\n';
-        amrex::Print()<<"dx[1] = " << dx[1]<<'\n';
-        amrex::Print()<<"dx[2] = " << dx[2]<<'\n';
+        //amrex::Print()<<"dx[0] = " << dx[0]<<'\n';
+        //amrex::Print()<<"dx[1] = " << dx[1]<<'\n';
+        //amrex::Print()<<"dx[2] = " << dx[2]<<'\n';
 
         // Temporary fields to update E and B by 1 time step, using the middle value
-        std::cout<<Efield[0]->boxArray()<<'\n';
+        //std::cout<<Efield[0]->boxArray()<<'\n';
         amrex::MultiFab mf_Ex_tmp(Efield[0]->boxArray(), Efield[0]->DistributionMap(), 1, Efield[0]->nGrowVect());
         amrex::MultiFab mf_Ey_tmp(Efield[1]->boxArray(), Efield[1]->DistributionMap(), 1, Efield[1]->nGrowVect());
         amrex::MultiFab mf_Ez_tmp(Efield[2]->boxArray(), Efield[2]->DistributionMap(), 1, Efield[2]->nGrowVect());
         amrex::MultiFab mf_Bx_tmp(Bfield[0]->boxArray(), Bfield[0]->DistributionMap(), 1, Bfield[0]->nGrowVect());
         amrex::MultiFab mf_By_tmp(Bfield[1]->boxArray(), Bfield[1]->DistributionMap(), 1, Bfield[1]->nGrowVect());
         amrex::MultiFab mf_Bz_tmp(Bfield[2]->boxArray(), Bfield[2]->DistributionMap(), 1, Bfield[2]->nGrowVect());
-        amrex::MultiFab::Copy(mf_Ex_tmp, *Efield[0], 0, 0, 1, Efield[0]->nGrowVect());
-        amrex::MultiFab::Copy(mf_Ey_tmp, *Efield[1], 0, 0, 1, Efield[1]->nGrowVect());
-        amrex::MultiFab::Copy(mf_Ez_tmp, *Efield[2], 0, 0, 1, Efield[2]->nGrowVect());
-        amrex::MultiFab::Copy(mf_Bx_tmp, *Bfield[0], 0, 0, 1, Bfield[0]->nGrowVect());
-        amrex::MultiFab::Copy(mf_By_tmp, *Bfield[1], 0, 0, 1, Bfield[1]->nGrowVect());
-        amrex::MultiFab::Copy(mf_Bz_tmp, *Bfield[2], 0, 0, 1, Bfield[2]->nGrowVect());
-        //mf_Ex_tmp.setVal(0.);
-        //mf_Ey_tmp.setVal(0.);
-        //mf_Ez_tmp.setVal(0.);
-        //mf_Bx_tmp.setVal(0.);
-        //mf_By_tmp.setVal(0.);
-        //mf_Bz_tmp.setVal(0.);
+        mf_Ex_tmp.ParallelCopy(*Efield[0],0,0,1, Efield[0]->nGrowVect(), Efield[0]->nGrowVect());
+        mf_Ey_tmp.ParallelCopy(*Efield[1],0,0,1, Efield[1]->nGrowVect(), Efield[1]->nGrowVect());
+        mf_Ez_tmp.ParallelCopy(*Efield[2],0,0,1, Efield[2]->nGrowVect(), Efield[2]->nGrowVect());
+        mf_Bx_tmp.ParallelCopy(*Bfield[0],0,0,1, Bfield[0]->nGrowVect(), Bfield[0]->nGrowVect());
+        mf_By_tmp.ParallelCopy(*Bfield[1],0,0,1, Bfield[1]->nGrowVect(), Bfield[1]->nGrowVect());
+        mf_Bz_tmp.ParallelCopy(*Bfield[2],0,0,1, Bfield[2]->nGrowVect(), Bfield[2]->nGrowVect());
 
 // Updating E and B
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         // Loop over boxes on this rank
-        std::cout << "Before Loop MFI" << std::endl ;
-        for ( MFIter mfi(*Efield[0], false); mfi.isValid(); ++mfi )  {
+        //std::cout << "Before Loop MFI" << std::endl ;
+        for ( MFIter mfi(*Efield[0], TilingIfNotGPU()); mfi.isValid(); ++mfi )  {
 
-            std::cout << "Loop MFI" << std::endl ;
+            //std::cout << "Loop MFI" << std::endl ;
 
             // Extract field data for this grid/tile
 
@@ -1041,94 +1035,6 @@ WarpX::EvolveRIP (amrex::Real dt, bool half)
 #endif
                 }
                 );
-/*
-            // Overwrite the values at time step n+1/2 kept in the temporary arrays on the regular arrays
-            // For E
-            amrex::ParallelFor(
-                tex, tey, tez,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Ex(i,j,k) = Ex_tmp(i,j,k);
-
-#elif defined WARPX_DIM_XZ
-                    Ex(i,j,0) = Ex_tmp(i,j,0);
-                    amrex::ignore_unused(k);
-
-#endif
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Eyh(i,j,k) = Eyh_tmp(i,j,k);
-
-#elif defined WARPX_DIM_XZ
-                    Ey(i,j,0) = Ey_tmp(i,j,0);
-                    amrex::ignore_unused(k);
-#endif
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Ezh(i,j,k) = Ezh_tmp(i,j,k);
-
-#elif defined WARPX_DIM_XZ
-                    Ez(i,j,0) = Ez_tmp(i,j,0);
-                    amrex::ignore_unused(k);
-
-#endif
-                }
-                );
-
-            // For B
-            amrex::ParallelFor(
-                tbx, tby, tbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Bxh(i,j,k) = Bxh_tmp(i,j,k)/c;
-
-#elif defined WARPX_DIM_XZ
-                    Bx(i,j,0) = Bx_tmp(i,j,0)/c;
-                    amrex::ignore_unused(k);
-#endif
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Byh(i,j,k) = Byh_tmp(i,j,k)/c;
-
-#elif defined WARPX_DIM_XZ
-                    By(i,j,0) = By_tmp(i,j,0)/c;
-                    amrex::ignore_unused(k);
-
-#endif
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k){
-
-#if defined WARPX_DIM_3D
-                    Bz(i,j,k) = Bz_tmp(i,j,k)/c;
-
-#elif defined WARPX_DIM_XZ
-                    Bz(i,j,0) = Bz_tmp(i,j,0)/c;
-                    amrex::ignore_unused(k);
-
-#endif
-                }
-                );
-        */
         }
-        /*
-        amrex::MultiFab::Copy(*Efield[0], mf_Ex_tmp, 0, 0, 1, 0);
-        amrex::MultiFab::Copy(*Efield[1], mf_Ey_tmp, 0, 0, 1, 0);
-        amrex::MultiFab::Copy(*Efield[2], mf_Ez_tmp, 0, 0, 1, 0);
-        amrex::MultiFab::Copy(*Bfield[0], mf_Bx_tmp, 0, 0, 1, 0);
-        amrex::MultiFab::Copy(*Bfield[1], mf_By_tmp, 0, 0, 1, 0);
-        amrex::MultiFab::Copy(*Bfield[2], mf_Bz_tmp, 0, 0, 1, 0);
-        Bfield[0]->mult(1./c);
-        Bfield[1]->mult(1./c);
-        Bfield[2]->mult(1./c);
-        */
-        std::cout << "After Loop MFI" << std::endl ;
     }
 }
