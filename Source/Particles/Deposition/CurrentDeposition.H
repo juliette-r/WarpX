@@ -510,8 +510,8 @@ void doEsirkepovDepositionShapeN (const GetParticlePosition& GetPosition,
             const int j_new = compute_shape_factor(sy_new+1, y_new);
             const int j_old = compute_shifted_shape_factor(sy_old, y_old, j_new);
 #endif
-            const int k_new = RIP ? compute_shape_factor(sz_new+1, z_new+1/2) : compute_shape_factor(sz_new+1, z_new) ;
-            const int k_old = RIP ? compute_shifted_shape_factor(sz_old, z_old+1/2, k_new) : compute_shifted_shape_factor(sz_old, z_old, k_new) ; 
+            const int k_new = RIP ? compute_shape_factor(sz_new+1, z_new+0.5_rt) : compute_shape_factor(sz_new+1, z_new) ;
+            const int k_old = RIP ? compute_shifted_shape_factor(sz_old, z_old+0.5_rt, k_new) : compute_shifted_shape_factor(sz_old, z_old, k_new) ; 
 
             // computes min/max positions of current contributions
             int dil = 1, diu = 1;
@@ -562,10 +562,15 @@ void doEsirkepovDepositionShapeN (const GetParticlePosition& GetPosition,
 #elif (defined WARPX_DIM_XZ) || (defined WARPX_DIM_RZ)
 
             if (RIP) {
-                amrex::Real sdxi = 0._rt;
                 for (int i=dil; i<=depos_order+1-diu; i++) {
+                    amrex::Real sdxi = 0._rt;
                     for (int k=dkl; k<=depos_order+2-dku; k++) {
-                        sdxi +=  2*wqx*(sx_old[i] - sx_new[i])*(sz_new[k] + 0.5_rt*(sz_old[k] - sz_new[k]));
+                        amrex::Real add = 0._rt;
+                        for(int b=dil; b<=i; b++){
+                            add+= 2._rt*wqx*(sx_old[b] - sx_new[b])*(sz_new[k] + 0.5_rt*(sz_old[k] - sz_new[k])) ;
+                        }
+                        sdxi*=-1._rt ;
+                        sdxi+= add ; 
                         amrex::Gpu::Atomic::AddNoRet(&Jx_arr(lo.x+i_new-1+i, lo.y+k_new-1+k, 0, 0), sdxi) ;
                     }
                 }
@@ -591,10 +596,11 @@ void doEsirkepovDepositionShapeN (const GetParticlePosition& GetPosition,
             }
 
             if (RIP) {
-                for (int k=dkl; k<=depos_order+2-dku; k++) {
+                for (int i=dil; i<=depos_order+2-diu; i++) {
                     amrex::Real sdyj = 0._rt;
-                    for (int i=dil; i<=depos_order+2-diu; i++) {
-                        sdyj += 2*wq*vy*invvol*((sz_new[k] + 0.5_rt * (sz_old[k] - sz_new[k]))*sx_new[i] +
+                    for (int k=dkl; k<=depos_order+2-dku; k++) {
+                        sdyj*=-1._rt ;
+                        sdyj += 2._rt*wq*vy*invvol*((sz_new[k] + 0.5_rt * (sz_old[k] - sz_new[k]))*sx_new[i] +
                                                                (0.5_rt * sz_new[k] + 1._rt / 3._rt *(sz_old[k] - sz_new[k]))*(sx_old[i] - sx_new[i]));
                         amrex::Gpu::Atomic::AddNoRet( &Jy_arr(lo.x+i_new-1+i, lo.y+k_new-1+k, 0, 0), sdyj);
                     }
