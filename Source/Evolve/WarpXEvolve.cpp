@@ -422,14 +422,14 @@ WarpX::OneStep_nosub (Real cur_time)
         NodalSyncE();
         NodalSyncB();
 
-        EvolveRIP(dt[0], true);
+        EvolveRIP(true);
 
         FillBoundaryE(guard_cells.ng_alloc_EB);
         FillBoundaryB(guard_cells.ng_alloc_EB);
         NodalSyncE();
         NodalSyncB();
 
-        EvolveRIP(dt[0], false);
+        EvolveRIP(false);
 
         FillBoundaryE(guard_cells.ng_alloc_EB);
         FillBoundaryB(guard_cells.ng_alloc_EB);
